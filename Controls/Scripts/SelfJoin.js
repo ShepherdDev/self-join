@@ -64,13 +64,21 @@
             var selectedValues = $('#' + this.hiddenField).val().split(',');
             var _this = this;
 
-            $('#' + this.clientID + ' input[type="checkbox"][value=""], #' + this.clientID + ' input[type="radio"][value=""]').prop('checked', true);
+            //
+            // By default click to tic any value="" non-checked inputs.
+            //
+            $('#' + this.clientID + ' input[type="checkbox"][value=""]:not(:checked), #' + this.clientID + ' input[type="radio"][value=""]:not(:checked)').click();
 
             $('#' + this.clientID + ' input[type="checkbox"]:not([value=""]), #' + this.clientID + ' input[type="radio"]:not([value=""])').each(function () {
-                $(this).prop('checked', selectedValues.indexOf($(this).attr('value')) != -1);
+                if ($(this).prop('checked') != (selectedValues.indexOf($(this).attr('value')) != -1)) {
+                    $(this).click();
+                }
 
                 if (_this.lockedValues.indexOf($(this).attr('value')) != -1) {
-                    $(this).prop('disabled', true).prop('checked', true).triggerHandler('disabled');
+                    if ($(this).prop('checked') == false) {
+                        $(this).click();
+                    }
+                    $(this).prop('disabled', true).triggerHandler('disabled');
                 }
             });
 
