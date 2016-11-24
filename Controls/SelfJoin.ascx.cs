@@ -211,9 +211,13 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// existing membership records.
         /// </summary>
         /// <returns>List of GroupMember objects for the current person.</returns>
-        List<GroupMember> GetMembershipRecords()
+        List<GroupMember> GetMembershipRecords( RockContext rockContext = null )
         {
-            RockContext rockContext = new RockContext();
+            if ( rockContext == null )
+            {
+                rockContext = new RockContext();
+            }
+
             List<GroupMember> groupsMembership = new List<GroupMember>();
             List<GroupMember> attributeMembers = new List<GroupMember>();
             GroupMemberService memberService = new GroupMemberService( rockContext );
@@ -241,6 +245,8 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 if ( member == null )
                 {
                     member = new GroupMember { Id = 0 };
+                    rockContext.GroupMembers.Add( member );
+
                     member.Group = group;
                     member.GroupId = member.Group.Id;
                     member.Person = CurrentPerson;
@@ -268,17 +274,22 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// Retrieve a list of GroupMember records that need Attributes supplied by the user.
         /// </summary>
         /// <returns>A List collection of GroupMembers.</returns>
-        List<GroupMember> GetAttributeMembershipRecords()
+        List<GroupMember> GetAttributeMembershipRecords( List<GroupMember> members = null, RockContext rockContext = null )
         {
             string requestMemberAttributes = GetAttributeValue( "RequestMemberAttributes" );
 
+            if ( members == null )
+            {
+                members = GetMembershipRecords( rockContext );
+            }
+
             if ( requestMemberAttributes == "All" )
             {
-                return GetMembershipRecords().Where( gm => gm.Attributes.Any() ).OrderBy( gm => gm.GroupId ).ToList();
+                return members.Where( gm => gm.Attributes.Any() ).OrderBy( gm => gm.GroupId ).ToList();
             }
             else if ( requestMemberAttributes == "Required" )
             {
-                return GetMembershipRecords().Where( gm => gm.Attributes.Values.Where( a => a.IsRequired ).Any() ).OrderBy( gm => gm.GroupId ).ToList();
+                return members.Where( gm => gm.Attributes.Values.Where( a => a.IsRequired ).Any() ).OrderBy( gm => gm.GroupId ).ToList();
             }
             else
             {
@@ -317,12 +328,28 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnSubmit_Click( object sender, EventArgs e )
         {
-            pnlGroupList.Visible = false;
-            pnlLavaDebug.Visible = false;
-            pnlGroupAttributes.Visible = true;
+            RockContext rockContext = new RockContext();
+            var membership = GetMembershipRecords( rockContext );
+            var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
 
-            rptrGroupAttributes.Controls.Clear();
-            BindGroupMembership( true, GetAttributeMembershipRecords() );
+            //
+            // TODO: Check IsValid on each item.
+            //
+            if ( attributeMembership.Any() )
+            {
+                pnlGroupList.Visible = false;
+                pnlLavaDebug.Visible = false;
+                pnlGroupAttributes.Visible = true;
+
+                rptrGroupAttributes.Controls.Clear();
+                BindGroupMembership( true, attributeMembership );
+            }
+            else
+            {
+                rockContext.SaveChanges();
+
+                TriggerWorkflows( membership );
+            }
         }
 
         /// <summary>
@@ -345,23 +372,40 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnAttributesSubmit_Click( object sender, EventArgs e )
         {
-            var members = GetAttributeMembershipRecords();
+            RockContext rockContext = new RockContext();
+            var membership = GetMembershipRecords( rockContext );
+            var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
 
-            if (members.Count == rptrGroupAttributes.Controls.Count)
+            if ( attributeMembership.Count == rptrGroupAttributes.Controls.Count)
             {
                 //
                 // This is a pretty serious hack, but since a placeholder is a really dumb control it should
                 // be safe to do this. We are accessing the contents of the PlaceHolder directly to find the
                 // current values of the attributes.
                 //
-                for ( int i = 0; i < members.Count; i++ )
+                for ( int i = 0; i < attributeMembership.Count; i++ )
                 {
-                    GroupMember member = members[i];
                     PlaceHolder phAttributes = ( PlaceHolder )rptrGroupAttributes.Controls[i].FindControl( "phAttributes" );
 
-                    Helper.GetEditValues( phAttributes, member );
+                    Helper.GetEditValues( phAttributes, attributeMembership[i] );
                 }
+
+                rockContext.SaveChanges();
+
+                TriggerWorkflows( membership );
             }
+            else
+            {
+                // TODO: Throw an error.
+            }
+        }
+
+        /// <summary>
+        /// Trigger all configured workflows for the given list of membership records.
+        /// </summary>
+        /// <param name="membership">The list of GroupMember records that have been created or modified.</param>
+        protected void TriggerWorkflows( List<GroupMember> membership )
+        {
         }
 
         /// <summary>
