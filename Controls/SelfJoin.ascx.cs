@@ -1,18 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Data.Entity;
 using System.Linq;
-using System.Web;
 using System.Web.UI;
 using System.Web.UI.WebControls;
 
 using Rock;
 using Rock.Attribute;
 using Rock.Data;
-using Rock.Extension;
 using Rock.Model;
 using Rock.Web.UI;
 
@@ -22,12 +19,14 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
     [Category( "com_shepherdchurch > Self Join" )]
     [Description( "Allows logged in users to join and un-join from specific groups." )]
 
-    [GroupField( "Group", "The group to use as a root for showing selections.", true, category: "CustomSetting" )]
-    [GroupRoleField("", "Group Role", "The group role to use when adding new members to the group. If the group does not have this role then the group's default role will be used.", true, category: "CustomSetting" )]
-    [EnumField( "Add As Status", "The member status to add new members to the group with.", typeof( GroupMemberStatus ), true, "2", category: "CustomSetting" )]
-    [CustomDropdownListField( "Request Member Attributes", "Request Group Member attributes be filled in by the user. If set to Required then only Attributes that are marked as Required will be prompted for. If set to All then all Attributes will be prompted for. Otherwise no attributes will be prompted for.", "None,Required,All", true, "None", category: "CustomSetting" )]
+    #region Block Fields
 
-    [BooleanField( "Allow Remove", "Allow a user to remove themselves from a group they are already in.", false, category: "CustomSetting" )]
+    [GroupField( "Group", "The group to use as a root for showing selections. This is passed to the Lava parser as a property called Group and can be used to build the list of checkboxes or radio buttons.", true, category: "CustomSetting" )]
+    [GroupRoleField("", "Group Role", "The group role to use when adding new members to the group. If the group does not have this role then the default role will be used instead.", true, category: "CustomSetting" )]
+    [EnumField( "Add As Status", "The member status to add new members to the group with. Group and Role capacities will only be enforced if this is set to Active.", typeof( GroupMemberStatus ), true, "2", category: "CustomSetting" )]
+    [CustomDropdownListField( "Request Member Attributes", "If a Group has Member Attributes defined then you can set if you want those attributes to be filled in by the user. If set to Required then the user will only be prompted for Attributes that are marked as Required. If set to All then the user will be prompted for all Attributes. Otherwise no attributes will be prompted for.", "None,Required,All", true, "None", category: "CustomSetting" )]
+
+    [BooleanField( "Allow Remove", "Allow a user to remove themselves from a group they are already in. If No then any checkboxes will be disabled for these groups. Radio buttons can still be deselected, however the internal logic will not remove them from the group.", false, category: "CustomSetting" )]
     [IntegerField( "Minimum Selection", "The minimum number of selections that the user must select before proceeding.", true, 0, category: "CustomSetting" )]
     [IntegerField( "Maximum Selection", "The maximum number of checkboxes that the user can select. Has no effect on radio buttons. Set to 0 for unlimited.", true, 0, category: "CustomSetting" )]
 
@@ -43,7 +42,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 </ul>" )]
 
     [TextField( "Submit Title", "Title of the Submit button to show to the user.", true, "Submit", category: "CustomSetting" )]
-    [CodeEditorField( "Content Template", "Template to use for the content that generates the checkboxes or radio buttons. Any checkbox or radio button will automatically be selected and enabled/disabled as needed. The Lava property Name can be used as a unique name key for the input controls though it is not required to match.", Rock.Web.UI.Controls.CodeEditorMode.Lava, height: 400, required: true, category: "CustomSetting", defaultValue: @"<ul class=""rocktree"">
+    [CodeEditorField( "Content Template", "Template to use for the content that generates the checkboxes or radio buttons. Any checkbox or radio button will automatically be selected and enabled/disabled as needed. The Lava property Name can be used as a unique name key for the input controls though it is not required to match. If a checkbox or radio button is disabled or enabled then a jQuery disabled and enabled event will be triggered allowing you to do custom UI updates.", Rock.Web.UI.Controls.CodeEditorMode.Lava, height: 400, required: true, category: "CustomSetting", defaultValue: @"<ul class=""rocktree"">
     {% for g1 in Group.Groups %}
     {% if g1.IsActive == true and g1.IsPublic == true %}
     <li>
@@ -81,13 +80,23 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
     {% endfor %}
 </ul>" )]
     [BooleanField( "Lava Debug", "Show the Lava Debug panel which contains detailed information about what fields are available in the Content Template.", category: "CustomSetting" )]
+
+    #endregion
+
     public partial class SelfJoin : RockBlockCustomSettings
     {
+        #region Properties and Fields
+
         Group _group = null;
+        bool _isGroupMembershipRebind = false;
+
         protected int MinimumSelection = 0;
         protected int MaximumSelection = 0;
         protected string LockedValues = string.Empty;
-        bool IsGroupMembershipRebind = false;
+
+        #endregion
+
+        #region Base Method Overrides
 
         /// <summary>
         /// Raises the <see cref="E:System.Web.UI.Control.Init" /> event.
@@ -128,6 +137,66 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 BindGroupMembership( false, GetAttributeMembershipRecords() );
             }
         }
+
+        /// <summary>
+        /// User has clicked on the "Settings" button in the admin panel.
+        /// </summary>
+        protected override void ShowSettings()
+        {
+            Group group = new GroupService( new RockContext() ).Get( GetAttributeValue( "Group" ).AsGuid() );
+
+            //
+            // Fill in the General section.
+            //
+            if ( group != null && group.Id != 0 )
+            {
+                gpSettingsGroup.SetValue( group );
+                grpSettingsRole.GroupTypeId = group.GroupTypeId;
+                grpSettingsRole.GroupRoleId = GetAttributeValue( "GroupRole" ).AsInteger();
+                grpSettingsRole.Visible = true;
+            }
+            else
+            {
+                gpSettingsGroup.SetValue( null );
+                grpSettingsRole.Visible = false;
+            }
+            ddlSettingsAddAsStatus.BindToEnum<GroupMemberStatus>( true, new GroupMemberStatus[] { GroupMemberStatus.Inactive } );
+            ddlSettingsAddAsStatus.SelectedValue = GetAttributeValue( "AddAsStatus" );
+            ddlSettingsRequestMemberAttributes.SelectedValue = GetAttributeValue( "RequestMemberAttributes" );
+
+            //
+            // Fill in the Limitation section.
+            //
+            cbSettingsAllowRemove.Checked = GetAttributeValue( "AllowRemove" ).AsBoolean();
+            nbSettingsMinimumSelection.Text = GetAttributeValue( "MinimumSelection" );
+            nbSettingsMaximumSelection.Text = GetAttributeValue( "MaximumSelection" );
+
+            //
+            // Fill in the Post-Save Actions section.
+            //
+            wtpSettingsIndividualWorkflow.SetValue( (!string.IsNullOrWhiteSpace( GetAttributeValue( "IndividualWorkflow" ) ) ? new WorkflowTypeService( new RockContext() ).Get( GetAttributeValue( "IndividualWorkflow" ).AsGuid() ) : null) );
+            var submissionWorkflowType = new WorkflowTypeService( new RockContext() ).Get( GetAttributeValue( "SubmissionWorkflow" ).AsGuid() );
+            wtpSettingsSubmissionWorkflow.SetValue( (submissionWorkflowType != null ? submissionWorkflowType : null) );
+            string selection = GetAttributeValue( "SubmissionAttribute" );
+            LoadSubmissionWorkflowAttributes( submissionWorkflowType );
+            ddlSettingsSubmissionAttribute.SelectedValue = ddlSettingsSubmissionAttribute.Items.FindByValue( selection ) != null ? selection : string.Empty;
+            ppSettingsSaveRedirectPage.SetValue( (!string.IsNullOrWhiteSpace( GetAttributeValue( "SaveRedirectPage" ) ) ? new PageService( new RockContext() ).Get( GetAttributeValue( "SaveRedirectPage" ).AsGuid() ) : null) );
+            ceSettingsSavedTemplate.Text = GetAttributeValue( "SavedTemplate" );
+
+            //
+            // Fill in the User Interface section.
+            //
+            tbSettingsSubmitTitle.Text = GetAttributeValue( "SubmitTitle" );
+            ceSettingsContentTemplate.Text = GetAttributeValue( "ContentTemplate" );
+            cbSettingsLavaDebug.Checked = GetAttributeValue( "LavaDebug" ).AsBoolean();
+
+            pnlSettingsModal.Visible = true;
+            mdSettings.Show();
+        }
+
+        #endregion
+
+        #region Core Methods
 
         /// <summary>
         /// Get a list of group GUIDs that the current person is a member of at or below the
@@ -198,56 +267,6 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             {
                 pnlLavaDebug.Visible = false;
             }
-        }
-
-        /// <summary>
-        /// User has clicked on the "Settings" button in the admin panel.
-        /// </summary>
-        protected override void ShowSettings()
-        {
-            Group group = new GroupService( new RockContext() ).Get( GetAttributeValue( "Group" ).AsGuid() );
-
-            if ( group != null && group.Id != 0 )
-            {
-                gpSettingsGroup.SetValue( group );
-                grpSettingsRole.GroupTypeId = group.GroupTypeId;
-                grpSettingsRole.GroupRoleId = GetAttributeValue( "GroupRole" ).AsInteger();
-                grpSettingsRole.Visible = true;
-            }
-            else
-            {
-                gpSettingsGroup.SetValue( null );
-                grpSettingsRole.Visible = false;
-            }
-
-            ddlSettingsAddAsStatus.BindToEnum<GroupMemberStatus>( true, new GroupMemberStatus[] { GroupMemberStatus.Inactive } );
-            ddlSettingsAddAsStatus.SelectedValue = GetAttributeValue( "AddAsStatus" );
-
-            ddlSettingsRequestMemberAttributes.Items.Clear();
-            ddlSettingsRequestMemberAttributes.Items.Add( "None" );
-            ddlSettingsRequestMemberAttributes.Items.Add( "Required" );
-            ddlSettingsRequestMemberAttributes.Items.Add( "All" );
-            ddlSettingsRequestMemberAttributes.SelectedValue = GetAttributeValue( "RequestMemberAttributes" );
-
-            cbSettingsAllowRemove.Checked = GetAttributeValue( "AllowRemove" ).AsBoolean();
-            nbSettingsMinimumSelection.Text = GetAttributeValue( "MinimumSelection" );
-            nbSettingsMaximumSelection.Text = GetAttributeValue( "MaximumSelection" );
-
-            wtpSettingsIndividualWorkflow.SetValue( (!string.IsNullOrWhiteSpace( GetAttributeValue( "IndividualWorkflow" ) ) ? new WorkflowTypeService( new RockContext() ).Get( GetAttributeValue( "IndividualWorkflow" ).AsGuid() ) : null) );
-            var submissionWorkflowType = new WorkflowTypeService( new RockContext() ).Get( GetAttributeValue( "SubmissionWorkflow" ).AsGuid() );
-            wtpSettingsSubmissionWorkflow.SetValue( (submissionWorkflowType != null ? submissionWorkflowType : null) );
-            string selection = GetAttributeValue( "SubmissionAttribute" );
-            LoadSubmissionWorkflowAttributes( submissionWorkflowType );
-            ddlSettingsSubmissionAttribute.SelectedValue = ddlSettingsSubmissionAttribute.Items.FindByValue( selection ) != null ? selection : string.Empty;
-            ppSettingsSaveRedirectPage.SetValue( (!string.IsNullOrWhiteSpace( GetAttributeValue( "SaveRedirectPage" ) ) ? new PageService( new RockContext() ).Get( GetAttributeValue( "SaveRedirectPage" ).AsGuid() ) : null) );
-            ceSettingsSavedTemplate.Text = GetAttributeValue( "SavedTemplate" );
-
-            tbSettingsSubmitTitle.Text = GetAttributeValue( "SubmitTitle" );
-            ceSettingsContentTemplate.Text = GetAttributeValue( "ContentTemplate" );
-            cbSettingsLavaDebug.Checked = GetAttributeValue( "LavaDebug" ).AsBoolean();
-
-            pnlSettingsModal.Visible = true;
-            mdSettings.Show();
         }
 
         /// <summary>
@@ -350,7 +369,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="members">List of GroupMember records to bind to.</param>
         void BindGroupMembership( bool setValues, List<GroupMember> members )
         {
-            IsGroupMembershipRebind = !setValues;
+            _isGroupMembershipRebind = !setValues;
             rptrGroupAttributes.DataSource = members;
             rptrGroupAttributes.DataBind();
         }
@@ -368,129 +387,6 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
                 originalMembership = originalMembership.Where( om => !membership.Select( m => m.Id ).ToList().Contains( om.Id ) ).ToList();
                 originalMembership.ForEach( om => { om.GroupMemberStatus = GroupMemberStatus.Inactive; } );
-            }
-        }
-
-        /// <summary>
-        /// Handles the ItemDataBound event of the rptrGroupAttributes control.
-        /// </summary>
-        /// <param name="sender">The object that sent the message.</param>
-        /// <param name="e">Event arguments.</param>
-        protected void rptrGroupAttributes_ItemDataBound( object sender, RepeaterItemEventArgs e )
-        {
-            PlaceHolder phAttributes = e.Item.FindControl( "phAttributes" ) as PlaceHolder;
-
-            Helper.AddEditControls( ( GroupMember )e.Item.DataItem, phAttributes, !IsGroupMembershipRebind, BlockValidationGroup, true );
-        }
-
-        /// <summary>
-        /// Handles the Click event of the btnSubmit control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void btnSubmit_Click( object sender, EventArgs e )
-        {
-            RockContext rockContext = new RockContext();
-            var membership = GetMembershipRecords( rockContext );
-            var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
-            List<ValidationResult> errorList = new List<ValidationResult>();
-
-            //
-            // Pre-check the membership list to make sure they are all valid.
-            //
-            foreach ( var member in membership )
-            {
-                if ( !member.IsValid )
-                {
-                    errorList.AddRange( member.ValidationResults );
-                }
-            }
-
-            //
-            // Check for any error message and display it. Also scroll the div onto the screen.
-            //
-            nbErrorMessage.Text = string.Empty;
-            if ( errorList.Any() )
-            {
-                string errors = "Unable to complete request, the following errors prevented completing your selections:<br /><ul>";
-
-                errors += errorList.Select( a => string.Format( "<li>{0}</li>", a.ErrorMessage ) ).ToList().AsDelimited( string.Empty );
-                errors += "</ul>";
-
-                nbErrorMessage.Text = errors;
-                ShowGroups( false );
-
-                ScrollToControl( nbErrorMessage );
-
-                return;
-            }
-
-            //
-            // If any of the groups have member attributes that we need to ask the user
-            // about then show that information to the user before saving.
-            //
-            if ( attributeMembership.Any() )
-            {
-                pnlGroupList.Visible = false;
-                pnlLavaDebug.Visible = false;
-                pnlGroupAttributes.Visible = true;
-
-                rptrGroupAttributes.Controls.Clear();
-                BindGroupMembership( true, attributeMembership );
-            }
-            else
-            {
-                RemoveFromUnselectedGroups( rockContext, membership );
-                Save( rockContext );
-            }
-        }
-
-        /// <summary>
-        /// Handles the Click event of the btnAttributesBack control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void btnAttributesBack_Click( object sender, EventArgs e )
-        {
-            pnlGroupList.Visible = true;
-            pnlGroupAttributes.Visible = false;
-
-            ShowGroups( false );
-        }
-
-        /// <summary>
-        /// Handles the Click event of the btnAttributesSubmit control.
-        /// </summary>
-        /// <param name="sender">The source of the event.</param>
-        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void btnAttributesSubmit_Click( object sender, EventArgs e )
-        {
-            RockContext rockContext = new RockContext();
-            var membership = GetMembershipRecords( rockContext );
-            var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
-
-            if ( attributeMembership.Count == rptrGroupAttributes.Controls.Count)
-            {
-                //
-                // This is a pretty serious hack, but since a placeholder is a really simple control it should
-                // be safe to do this. We are accessing the contents of the PlaceHolder directly to find the
-                // current values of the attributes.
-                //
-                for ( int i = 0; i < attributeMembership.Count; i++ )
-                {
-                    PlaceHolder phAttributes = ( PlaceHolder )rptrGroupAttributes.Controls[i].FindControl( "phAttributes" );
-
-                    Helper.GetEditValues( phAttributes, attributeMembership[i] );
-                }
-
-                RemoveFromUnselectedGroups( rockContext, membership );
-                Save( rockContext );
-            }
-            else
-            {
-                nbErrorMessage.Text = "An unexpected error occurred trying to read your selections.";
-                pnlGroupAttributes.Visible = false;
-                ScrollToControl( nbErrorMessage );
             }
         }
 
@@ -610,6 +506,156 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         }
 
         /// <summary>
+        /// Scroll the viewport so that the control is at the top of the screen.
+        /// </summary>
+        /// <param name="control">Control to scroll into the viewport.</param>
+        protected void ScrollToControl( Control control )
+        {
+            string script = string.Format( "var bounds = document.getElementById('{0}').getBoundingClientRect(); if (bounds.top > window.innerHeight || bounds.bottom < 0) {{ $('html, body').animate({{ scrollTop: $('#{0}').offset().top - 10 }}, 250); }}", control.ClientID );
+
+            ScriptManager.RegisterStartupScript( Page, GetType(), "ScrollToControl", script, true );
+        }
+
+        /// <summary>
+        /// Populate the ddlSettingsSubmissionAttribute drop down with the Attributes available in
+        /// the specified WorkflowType.
+        /// </summary>
+        /// <param name="workflowType">The WorkflowType whose Attributes should be populated.</param>
+        protected void LoadSubmissionWorkflowAttributes( WorkflowType workflowType )
+        {
+            ddlSettingsSubmissionAttribute.Items.Clear();
+            ddlSettingsSubmissionAttribute.Items.Add( string.Empty );
+
+            if ( workflowType != null )
+            {
+                new AttributeService( new RockContext() )
+                    .GetByEntityTypeId( new Workflow().TypeId ).AsQueryable()
+                    .Where( a =>
+                        a.EntityTypeQualifierColumn.Equals( "WorkflowTypeId", StringComparison.OrdinalIgnoreCase ) &&
+                        a.EntityTypeQualifierValue.Equals( workflowType.Id.ToString() ) )
+                    .OrderBy( a => a.Order )
+                    .ThenBy( a => a.Name )
+                    .ToList()
+                    .ForEach( a => ddlSettingsSubmissionAttribute.Items.Add( a.Name ) );
+            }
+        }
+
+        #endregion
+
+        #region Event Handlers
+
+        /// <summary>
+        /// Handles the Click event of the btnSubmit control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void btnSubmit_Click( object sender, EventArgs e )
+        {
+            RockContext rockContext = new RockContext();
+            var membership = GetMembershipRecords( rockContext );
+            var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
+            List<ValidationResult> errorList = new List<ValidationResult>();
+
+            //
+            // Pre-check the membership list to make sure they are all valid.
+            //
+            foreach ( var member in membership )
+            {
+                if ( !member.IsValid )
+                {
+                    errorList.AddRange( member.ValidationResults );
+                }
+            }
+
+            //
+            // Check for any error message and display it. Also scroll the div onto the screen.
+            //
+            nbErrorMessage.Text = string.Empty;
+            if ( errorList.Any() )
+            {
+                string errors = "Unable to complete request, the following errors prevented completing your selections:<br /><ul>";
+
+                errors += errorList.Select( a => string.Format( "<li>{0}</li>", a.ErrorMessage ) ).ToList().AsDelimited( string.Empty );
+                errors += "</ul>";
+
+                nbErrorMessage.Text = errors;
+                ShowGroups( false );
+
+                ScrollToControl( nbErrorMessage );
+
+                return;
+            }
+
+            //
+            // If any of the groups have member attributes that we need to ask the user
+            // about then show that information to the user before saving.
+            //
+            if ( attributeMembership.Any() )
+            {
+                pnlGroupList.Visible = false;
+                pnlLavaDebug.Visible = false;
+                pnlGroupAttributes.Visible = true;
+
+                rptrGroupAttributes.Controls.Clear();
+                BindGroupMembership( true, attributeMembership );
+            }
+            else
+            {
+                RemoveFromUnselectedGroups( rockContext, membership );
+                Save( rockContext );
+            }
+        }
+
+        /// <summary>
+        /// Handles the Click event of the btnAttributesBack control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void btnAttributesBack_Click( object sender, EventArgs e )
+        {
+            pnlGroupList.Visible = true;
+            pnlGroupAttributes.Visible = false;
+
+            ShowGroups( false );
+        }
+
+        /// <summary>
+        /// Handles the Click event of the btnAttributesSubmit control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void btnAttributesSubmit_Click( object sender, EventArgs e )
+        {
+            RockContext rockContext = new RockContext();
+            var membership = GetMembershipRecords( rockContext );
+            var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
+
+            if ( attributeMembership.Count == rptrGroupAttributes.Controls.Count )
+            {
+                //
+                // This is a pretty serious hack, but since a placeholder is a really simple control it should
+                // be safe to do this. We are accessing the contents of the PlaceHolder directly to find the
+                // current values of the attributes.
+                //
+                for ( int i = 0; i < attributeMembership.Count; i++ )
+                {
+                    PlaceHolder phAttributes = ( PlaceHolder )rptrGroupAttributes.Controls[i].FindControl( "phAttributes" );
+
+                    Helper.GetEditValues( phAttributes, attributeMembership[i] );
+                }
+
+                RemoveFromUnselectedGroups( rockContext, membership );
+                Save( rockContext );
+            }
+            else
+            {
+                nbErrorMessage.Text = "An unexpected error occurred trying to read your selections.";
+                pnlGroupAttributes.Visible = false;
+                ScrollToControl( nbErrorMessage );
+            }
+        }
+
+        /// <summary>
         /// Handles the Click event of the lbSave control.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
@@ -649,6 +695,31 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         }
 
         /// <summary>
+        /// Handles the BlockUpdated event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void Block_BlockUpdated( object sender, EventArgs e )
+        {
+            pnlGroupList.Visible = true;
+            pnlGroupAttributes.Visible = false;
+
+            ShowGroups( true );
+        }
+
+        /// <summary>
+        /// Handles the ItemDataBound event of the rptrGroupAttributes control.
+        /// </summary>
+        /// <param name="sender">The object that sent the message.</param>
+        /// <param name="e">Event arguments.</param>
+        protected void rptrGroupAttributes_ItemDataBound( object sender, RepeaterItemEventArgs e )
+        {
+            PlaceHolder phAttributes = e.Item.FindControl( "phAttributes" ) as PlaceHolder;
+
+            Helper.AddEditControls( ( GroupMember )e.Item.DataItem, phAttributes, !_isGroupMembershipRebind, BlockValidationGroup, true );
+        }
+
+        /// <summary>
         /// User has changed selection on the Group Picker. Update the Role picker to match.
         /// </summary>
         /// <param name="sender">Object that has initiated this event.</param>
@@ -675,29 +746,10 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         }
 
         /// <summary>
-        /// Handles the BlockUpdated event of the control.
+        /// User has changed the value of the selected Group. Update the roles drop down with the new values.
         /// </summary>
         /// <param name="sender">The source of the event.</param>
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
-        protected void Block_BlockUpdated( object sender, EventArgs e )
-        {
-            pnlGroupList.Visible = true;
-            pnlGroupAttributes.Visible = false;
-
-            ShowGroups( true );
-        }
-
-        /// <summary>
-        /// Scroll the viewport so that the control is at the top of the screen.
-        /// </summary>
-        /// <param name="control">Control to scroll into the viewport.</param>
-        protected void ScrollToControl( Control control )
-        {
-            string script = string.Format( "var bounds = document.getElementById('{0}').getBoundingClientRect(); if (bounds.top > window.innerHeight || bounds.bottom < 0) {{ $('html, body').animate({{ scrollTop: $('#{0}').offset().top - 10 }}, 250); }}", control.ClientID );
-
-            ScriptManager.RegisterStartupScript( Page, GetType(), "ScrollToControl", script, true );
-        }
-
         protected void wtpSettingsSubmissionWorkflow_SelectItem( object sender, EventArgs e )
         {
             WorkflowType submissionWorkflowType = (wtpSettingsSubmissionWorkflow.SelectedValueAsId().HasValue ? new WorkflowTypeService( new RockContext() ).Get( wtpSettingsSubmissionWorkflow.SelectedValueAsId().Value ) : new WorkflowType());
@@ -707,23 +759,6 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             ddlSettingsSubmissionAttribute.SelectedValue = ddlSettingsSubmissionAttribute.Items.FindByValue( selection ) != null ? selection : string.Empty;
         }
 
-        protected void LoadSubmissionWorkflowAttributes( WorkflowType workflowType )
-        {
-            ddlSettingsSubmissionAttribute.Items.Clear();
-            ddlSettingsSubmissionAttribute.Items.Add( string.Empty );
-
-            if ( workflowType != null )
-            {
-                new AttributeService( new RockContext() )
-                    .GetByEntityTypeId( new Workflow().TypeId ).AsQueryable()
-                    .Where( a =>
-                        a.EntityTypeQualifierColumn.Equals( "WorkflowTypeId", StringComparison.OrdinalIgnoreCase ) &&
-                        a.EntityTypeQualifierValue.Equals( workflowType.Id.ToString() ) )
-                    .OrderBy( a => a.Order )
-                    .ThenBy( a => a.Name )
-                    .ToList()
-                    .ForEach( a => ddlSettingsSubmissionAttribute.Items.Add( a.Name ) );
-            }
-        }
+        #endregion
     }
 }

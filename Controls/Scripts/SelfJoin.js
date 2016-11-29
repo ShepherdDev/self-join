@@ -50,9 +50,7 @@
             var selected = [];
             var _this = this;
             
-            //
-            // If the admin has not included a checkbox/radio for this original value then include it anyway.
-            //
+            /* If the admin has not included a checkbox/radio for this original value then include it anyway. */
             this.originalValues.forEach(function (v) {
                 if ($('#' + _this.clientID + ' input[value="' + v + '"]').length == 0)
                 {
@@ -60,9 +58,7 @@
                 }
             });
 
-            //
-            // Find the user's selections.
-            //
+            /* Find the user's selections. */
             $('#' + this.clientID + ' input[type="checkbox"]:not([value=""]), #' + this.clientID + ' input[type="radio"]:not([value=""])').each(function () {
                 if ($(this).prop('checked') && selected.indexOf($(this).attr('value')) == -1) {
                     selected.push($(this).attr('value'));
@@ -79,11 +75,10 @@
             var selectedValues = this.originalValues;
             var _this = this;
 
-            //
-            // By default click to tic any value="" non-checked inputs.
-            //
+            /* By default click to tic any value="" non-checked inputs. */
             $('#' + this.clientID + ' input[type="checkbox"][value=""]:not(:checked), #' + this.clientID + ' input[type="radio"][value=""]:not(:checked)').click();
 
+            /* Now go through and tic any inputs that should be selected based on existing values. */
             $('#' + this.clientID + ' input[type="checkbox"]:not([value=""]), #' + this.clientID + ' input[type="radio"]:not([value=""])').each(function () {
                 if ($(this).prop('checked') != (selectedValues.indexOf($(this).attr('value')) != -1)) {
                     $(this).click();
