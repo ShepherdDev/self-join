@@ -6,6 +6,7 @@
         this.minCount = MinimumSelection;
         this.maxCount = MaximumSelection;
         this.lockedValues = LockedValues.split(',');
+        this.originalValues = ($('#' + this.hiddenField).val() ? $('#' + this.hiddenField).val().split(',') : []);
 
         //
         // Update the enabled/disabled states of all check boxes. Also updates the hidden field
@@ -47,7 +48,21 @@
         //
         this.updateHiddenField = function() {
             var selected = [];
+            var _this = this;
+            
+            //
+            // If the admin has not included a checkbox/radio for this original value then include it anyway.
+            //
+            this.originalValues.forEach(function (v) {
+                if ($('#' + _this.clientID + ' input[value="' + v + '"]').length == 0)
+                {
+                    selected.push(v);
+                }
+            });
 
+            //
+            // Find the user's selections.
+            //
             $('#' + this.clientID + ' input[type="checkbox"]:not([value=""]), #' + this.clientID + ' input[type="radio"]:not([value=""])').each(function () {
                 if ($(this).prop('checked') && selected.indexOf($(this).attr('value')) == -1) {
                     selected.push($(this).attr('value'));
@@ -61,7 +76,7 @@
         // Setup click handlers and set initial selections.
         //
         this.setup = function() {
-            var selectedValues = $('#' + this.hiddenField).val().split(',');
+            var selectedValues = this.originalValues;
             var _this = this;
 
             //
