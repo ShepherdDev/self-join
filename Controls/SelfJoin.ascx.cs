@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.ComponentModel.DataAnnotations;
+using System.Data.Entity;
 using System.Linq;
 using System.Web;
 using System.Web.UI;
@@ -28,9 +31,21 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
     [IntegerField( "Minimum Selection", "The minimum number of selections that the user must select before proceeding.", true, 0, category: "CustomSetting" )]
     [IntegerField( "Maximum Selection", "The maximum number of checkboxes that the user can select. Has no effect on radio buttons. Set to 0 for unlimited.", true, 0, category: "CustomSetting" )]
 
+    [LinkedPage( "Save Redirect Page", "The page to redirect the user to after all their changes have been saved.", false, category: "CustomSetting" )]
+    [WorkflowTypeField( "Individual Workflow", "Activate the selected workflow for each individual GroupMember record created (also fires if an GroupMember changes from Inactive to Pending or Active). The GroupMember is passed as the Entity to the workflow.", category: "CustomSetting" )]
+    [WorkflowTypeField( "Submission Workflow", "Activate the selected workflow one time for each submission. The CurrentPerson is passed as the Entity to the workflow.", category: "CustomSetting" )]
+    [TextField( "Submission Attribute", "Attribute to store the group member GUIDs into as a comma separated list." )]
+    [CodeEditorField( "Saved Template", "Message to be displayed to the user once all their selections have been saved. Lava objects 'Added' and 'Removed' are arrays of GroupMember objects for the groups they were added or removed from.", Rock.Web.UI.Controls.CodeEditorMode.Lava, height: 400, category: "CustomSetting", defaultValue: @"Thank you for your interest. You have been added to the following groups:
+<ul>
+    {% for gm in Added %}
+    <li>{{ gm.Group.Name }}</li>
+    {% endfor %}
+</ul>" )]
+
     [TextField( "Submit Title", "Title of the Submit button to show to the user.", true, "Submit", category: "CustomSetting" )]
     [CodeEditorField( "Content Template", "Template to use for the content that generates the checkboxes or radio buttons. Any checkbox or radio button will automatically be selected and enabled/disabled as needed. The Lava property Name can be used as a unique name key for the input controls though it is not required to match.", Rock.Web.UI.Controls.CodeEditorMode.Lava, height: 400, required: true, category: "CustomSetting", defaultValue: @"<ul class=""rocktree"">
     {% for g1 in Group.Groups %}
+    {% if g1.IsActive == true and g1.IsPublic == true %}
     <li>
         <div class=""checkbox"">
             <label><input type=""checkbox"" value=""{{ g1.Guid }}""> {{ g1.Name }}</label>
@@ -38,6 +53,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         {% if g1.Groups != empty %}
             <ul class=""rocklist"">
                 {% for g2 in g1.Groups %}
+                {% if g2.IsActive == true and g2.IsPublic == true %}
                 <li>
                     <div class=""checkbox"">
                         <label><input type=""checkbox"" value=""{{ g2.Guid }}""> {{ g2.Name }}</label>
@@ -45,19 +61,23 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                     {% if g1.Groups != empty %}
                         <ul class=""rocklist"">
                             {% for g3 in g2.Groups %}
+                            {% if g3.IsActive == true and g3.IsPublic == true %}
                             <li>
                                 <div class=""checkbox"">
                                     <label><input type=""checkbox"" value=""{{ g3.Guid }}""> {{ g3.Name }}</label>
                                 </div>
                             </li>
+                            {% endif %}
                             {% endfor %}
                         </ul>
                     {% endif %}
                 </li>
+                {% endif %}
                 {% endfor %}
             </ul>
         {% endif %}
     </li>
+    {% endif %}
     {% endfor %}
 </ul>" )]
     [BooleanField( "Lava Debug", "Show the Lava Debug panel which contains detailed information about what fields are available in the Content Template.", category: "CustomSetting" )]
@@ -68,6 +88,19 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         protected int MaximumSelection = 0;
         protected string LockedValues = string.Empty;
         bool IsGroupMembershipRebind = false;
+
+        /// <summary>
+        /// Raises the <see cref="E:System.Web.UI.Control.Init" /> event.
+        /// </summary>
+        /// <param name="e">An <see cref="T:System.EventArgs" /> object that contains the event data.</param>
+        protected override void OnInit( EventArgs e )
+        {
+            base.OnInit( e );
+
+            // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
+            this.BlockUpdated += Block_BlockUpdated;
+            this.AddConfigurationUpdateTrigger( upnlContent );
+        }
 
         /// <summary>
         /// Initialize basic information about the page structure and setup the default content.
@@ -102,15 +135,17 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// </summary>
         /// <param name="group">Current group in the recursive call to check.</param>
         /// <returns>Array of string GUIDs for which groups the user is a member of.</returns>
-        string[] GetExistingMembership(Group group)
+        List<GroupMember> GetExistingMembership(Group group)
         {
-            List<string> membership = new List<string>();
+            List<GroupMember> membership = new List<GroupMember>();
 
             if ( group != null )
             {
-                if ( group.Members.Where( m => m.PersonId == CurrentPerson.Id ).Count() != 0 )
+                GroupMember member = group.Members.Where( m => m.PersonId == CurrentPerson.Id && m.GroupMemberStatus != GroupMemberStatus.Inactive ).FirstOrDefault();
+
+                if ( group.IsActive && member != null && member.Id != 0 )
                 {
-                    membership.Add( group.Guid.ToString() );
+                    membership.Add( member );
                 }
 
                 foreach ( Group g in group.Groups )
@@ -119,7 +154,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 }
             }
 
-            return membership.ToArray();
+            return membership;
         }
 
         /// <summary>
@@ -129,17 +164,18 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         {
             string template = GetAttributeValue( "ContentTemplate" ) ?? string.Empty;
             var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, CurrentPerson );
-            string[] membership = GetExistingMembership( _group );
+            List<GroupMember> membership = GetExistingMembership( _group );
+            string membershipString = membership.Select( m => m.Group.Guid.ToString() ).ToList().AsDelimited( "," );
 
             //
             // Set some variables that the .ASCX file will use to initialize the Javascript.
             //
             MinimumSelection = GetAttributeValue( "MinimumSelection" ).AsInteger();
             MaximumSelection = GetAttributeValue( "MaximumSelection" ).AsInteger();
-            LockedValues = (GetAttributeValue( "AllowRemove" ).AsBoolean( false ) ? string.Empty : string.Join( ",", membership ));
+            LockedValues = (GetAttributeValue( "AllowRemove" ).AsBoolean( false ) ? string.Empty : membershipString);
             if ( setValues )
             {
-                hfSelection.Value = string.Join( ",", membership );
+                hfSelection.Value = membershipString;
             }
 
             //
@@ -147,7 +183,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             //
             mergeFields.Add( "Group", _group );
             mergeFields.Add( "Name", ClientID );
-            mergeFields.Add( "Membership", membership );
+            mergeFields.Add( "Membership", membership.Select( m => m.Group.Guid.ToString() ).ToList() );
             ltContent.Text = template.ResolveMergeFields( mergeFields );
 
             //
@@ -197,6 +233,15 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             nbSettingsMinimumSelection.Text = GetAttributeValue( "MinimumSelection" );
             nbSettingsMaximumSelection.Text = GetAttributeValue( "MaximumSelection" );
 
+            wtpSettingsIndividualWorkflow.SetValue( (!string.IsNullOrWhiteSpace( GetAttributeValue( "IndividualWorkflow" ) ) ? new WorkflowTypeService( new RockContext() ).Get( GetAttributeValue( "IndividualWorkflow" ).AsGuid() ) : null) );
+            var submissionWorkflowType = new WorkflowTypeService( new RockContext() ).Get( GetAttributeValue( "SubmissionWorkflow" ).AsGuid() );
+            wtpSettingsSubmissionWorkflow.SetValue( (submissionWorkflowType != null ? submissionWorkflowType : null) );
+            string selection = GetAttributeValue( "SubmissionAttribute" );
+            LoadSubmissionWorkflowAttributes( submissionWorkflowType );
+            ddlSettingsSubmissionAttribute.SelectedValue = ddlSettingsSubmissionAttribute.Items.FindByValue( selection ) != null ? selection : string.Empty;
+            ppSettingsSaveRedirectPage.SetValue( (!string.IsNullOrWhiteSpace( GetAttributeValue( "SaveRedirectPage" ) ) ? new PageService( new RockContext() ).Get( GetAttributeValue( "SaveRedirectPage" ).AsGuid() ) : null) );
+            ceSettingsSavedTemplate.Text = GetAttributeValue( "SavedTemplate" );
+
             tbSettingsSubmitTitle.Text = GetAttributeValue( "SubmitTitle" );
             ceSettingsContentTemplate.Text = GetAttributeValue( "ContentTemplate" );
             cbSettingsLavaDebug.Checked = GetAttributeValue( "LavaDebug" ).AsBoolean();
@@ -222,6 +267,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             List<GroupMember> attributeMembers = new List<GroupMember>();
             GroupMemberService memberService = new GroupMemberService( rockContext );
             GroupService groupService = new GroupService( rockContext );
+            Person currentPerson = new PersonService( rockContext ).Get( CurrentPerson.Id );
             GroupMemberStatus status = ( GroupMemberStatus )Enum.Parse( typeof( GroupMemberStatus ), (GetAttributeValue( "AddAsStatus" ) ?? string.Empty) );
 
             foreach ( string g in hfSelection.Value.Split( ',' ) )
@@ -249,7 +295,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
                     member.Group = group;
                     member.GroupId = member.Group.Id;
-                    member.Person = CurrentPerson;
+                    member.Person = currentPerson;
                     member.PersonId = member.Person.Id;
                     member.DateTimeAdded = RockDateTime.Now;
                     member.GroupRoleId = member.Group.GroupType.DefaultGroupRoleId ?? 0;
@@ -310,6 +356,22 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         }
 
         /// <summary>
+        /// Remove (make Inactive) the user from any groups that they have unselected.
+        /// </summary>
+        /// <param name="rockContext">Data context to make changes in.</param>
+        /// <param name="membership">The membership records that should remain.</param>
+        void RemoveFromUnselectedGroups( RockContext rockContext, List<GroupMember> membership )
+        {
+            if ( GetAttributeValue( "AllowRemove" ).AsBoolean() == true )
+            {
+                List<GroupMember> originalMembership = GetExistingMembership( new GroupService( rockContext ).Get( _group.Id ) );
+
+                originalMembership = originalMembership.Where( om => !membership.Select( m => m.Id ).ToList().Contains( om.Id ) ).ToList();
+                originalMembership.ForEach( om => { om.GroupMemberStatus = GroupMemberStatus.Inactive; } );
+            }
+        }
+
+        /// <summary>
         /// Handles the ItemDataBound event of the rptrGroupAttributes control.
         /// </summary>
         /// <param name="sender">The object that sent the message.</param>
@@ -331,9 +393,41 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             RockContext rockContext = new RockContext();
             var membership = GetMembershipRecords( rockContext );
             var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
+            List<ValidationResult> errorList = new List<ValidationResult>();
 
             //
-            // TODO: Check IsValid on each item.
+            // Pre-check the membership list to make sure they are all valid.
+            //
+            foreach ( var member in membership )
+            {
+                if ( !member.IsValid )
+                {
+                    errorList.AddRange( member.ValidationResults );
+                }
+            }
+
+            //
+            // Check for any error message and display it. Also scroll the div onto the screen.
+            //
+            nbErrorMessage.Text = string.Empty;
+            if ( errorList.Any() )
+            {
+                string errors = "Unable to complete request, the following errors prevented completing your selections:<br /><ul>";
+
+                errors += errorList.Select( a => string.Format( "<li>{0}</li>", a.ErrorMessage ) ).ToList().AsDelimited( string.Empty );
+                errors += "</ul>";
+
+                nbErrorMessage.Text = errors;
+                ShowGroups( false );
+
+                ScrollToControl( nbErrorMessage );
+
+                return;
+            }
+
+            //
+            // If any of the groups have member attributes that we need to ask the user
+            // about then show that information to the user before saving.
             //
             if ( attributeMembership.Any() )
             {
@@ -346,9 +440,8 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             }
             else
             {
-                rockContext.SaveChanges();
-
-                TriggerWorkflows( membership );
+                RemoveFromUnselectedGroups( rockContext, membership );
+                Save( rockContext );
             }
         }
 
@@ -379,7 +472,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             if ( attributeMembership.Count == rptrGroupAttributes.Controls.Count)
             {
                 //
-                // This is a pretty serious hack, but since a placeholder is a really dumb control it should
+                // This is a pretty serious hack, but since a placeholder is a really simple control it should
                 // be safe to do this. We are accessing the contents of the PlaceHolder directly to find the
                 // current values of the attributes.
                 //
@@ -390,13 +483,51 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                     Helper.GetEditValues( phAttributes, attributeMembership[i] );
                 }
 
-                rockContext.SaveChanges();
-
-                TriggerWorkflows( membership );
+                RemoveFromUnselectedGroups( rockContext, membership );
+                Save( rockContext );
             }
             else
             {
-                // TODO: Throw an error.
+                nbErrorMessage.Text = "An unexpected error occurred trying to read your selections.";
+                pnlGroupAttributes.Visible = false;
+                ScrollToControl( nbErrorMessage );
+            }
+        }
+
+        /// <summary>
+        /// Perform the final SaveChanges operation on the context and trigger any on-save events
+        /// like workflows and "thank you" message or page redirect.
+        /// </summary>
+        /// <param name="rockContext">The Database Context that contains all the changes.</param>
+        protected void Save( RockContext rockContext )
+        {
+            var added = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Added || (c.State == EntityState.Modified && ( GroupMemberStatus )c.OriginalValues["GroupMemberStatus"] == GroupMemberStatus.Inactive) ).Select( c => c.Entity ).ToList();
+            var removed = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Modified && ( GroupMemberStatus )c.CurrentValues["GroupMemberStatus"] == GroupMemberStatus.Inactive ).Select( c => c.Entity ).ToList();
+
+            //rockContext.SaveChanges();
+            TriggerWorkflows( added );
+
+            if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "SavedTemplate" ) ) )
+            {
+                string template = GetAttributeValue( "SavedTemplate" ) ?? string.Empty;
+                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, CurrentPerson );
+
+                //
+                // Add our custom merge fields and generate the content.
+                //
+                mergeFields.Add( "Added", added );
+                mergeFields.Add( "Removed", removed );
+                nbSuccessMessage.Text = template.ResolveMergeFields( mergeFields );
+
+                pnlGroupList.Visible = false;
+                pnlGroupAttributes.Visible = false;
+
+                ScrollToControl( nbSuccessMessage );
+            }
+
+            if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "SaveRedirectPage" ) ) )
+            {
+                NavigateToLinkedPage( "SaveRedirectPage" );
             }
         }
 
@@ -406,6 +537,76 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="membership">The list of GroupMember records that have been created or modified.</param>
         protected void TriggerWorkflows( List<GroupMember> membership )
         {
+            WorkflowType workflowType = null;
+            RockContext rockContext = new RockContext();
+            WorkflowTypeService workflowTypeService = new WorkflowTypeService( rockContext );
+            WorkflowService workflowService = new WorkflowService( rockContext );
+            Guid? workflowTypeGuid = GetAttributeValue( "IndividualWorkflow" ).AsGuidOrNull();
+            Workflow workflow;
+
+            //
+            // Process per-GroupMember workflow requests.
+            //
+            if ( workflowTypeGuid.HasValue )
+            {
+                workflowType = workflowTypeService.Get( workflowTypeGuid.Value );
+
+                if ( workflowType != null && workflowType.Id != 0 )
+                {
+                    //
+                    // Walk each GroupMember object and fire off a Workflow for each.
+                    //
+                    foreach ( var member in membership )
+                    {
+                        try
+                        {
+                            workflow = Workflow.Activate( workflowType, CurrentPerson.FullName, rockContext );
+                            if ( workflow != null )
+                            {
+                                List<string> workflowErrors;
+
+                                workflowService.Process( workflow, member, out workflowErrors );
+                            }
+                        }
+                        catch ( Exception ex )
+                        {
+                            ExceptionLogService.LogException( ex, this.Context );
+                        }
+                    }
+                }
+            }
+
+            //
+            // Activate an optional workflow for the entire submission.
+            //
+            workflowTypeGuid = GetAttributeValue( "SubmissionWorkflow" ).AsGuidOrNull();
+            if ( workflowTypeGuid.HasValue )
+            {
+                workflowType = workflowTypeService.Get( workflowTypeGuid.Value );
+
+                if ( workflowType != null && workflowType.Id != 0 )
+                {
+                    try
+                    {
+                        workflow = Workflow.Activate( workflowType, CurrentPerson.FullName, rockContext );
+                        if ( workflow != null )
+                        {
+                            List<string> workflowErrors;
+
+                            if ( workflow.Attributes.ContainsKey( GetAttributeValue( "SubmissionAttribute" ) ) )
+                            {
+                                string guids = membership.Select( gm => gm.Guid.ToString() ).ToList().AsDelimited( "," );
+                                workflow.SetAttributeValue( GetAttributeValue( "SubmissionAttribute" ), guids );
+                            }
+                            workflowService.Process( workflow, CurrentPerson, out workflowErrors );
+                        }
+                    }
+                    catch ( Exception ex )
+                    {
+                        ExceptionLogService.LogException( ex, this.Context );
+                    }
+                }
+            }
         }
 
         /// <summary>
@@ -426,6 +627,12 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             SetAttributeValue( "MinimumSelection", nbSettingsMinimumSelection.Text );
             SetAttributeValue( "MaximumSelection", nbSettingsMaximumSelection.Text );
 
+            SetAttributeValue( "SaveRedirectPage", (ppSettingsSaveRedirectPage.PageId.HasValue ? new PageService( new RockContext() ).Get( ppSettingsSaveRedirectPage.PageId.Value ).Guid.ToString() : string.Empty) );
+            SetAttributeValue( "IndividualWorkflow", (wtpSettingsIndividualWorkflow.SelectedValueAsId().HasValue ? new WorkflowTypeService( new RockContext() ).Get( wtpSettingsIndividualWorkflow.SelectedValueAsId().Value ).Guid.ToString() : string.Empty) );
+            SetAttributeValue( "SubmissionWorkflow", (wtpSettingsSubmissionWorkflow.SelectedValueAsId().HasValue ? new WorkflowTypeService( new RockContext() ).Get( wtpSettingsSubmissionWorkflow.SelectedValueAsId().Value ).Guid.ToString() : string.Empty) );
+            SetAttributeValue( "SubmissionAttribute", ddlSettingsSubmissionAttribute.SelectedValue );
+            SetAttributeValue( "SavedTemplate", ceSettingsSavedTemplate.Text );
+
             SetAttributeValue( "SubmitTitle", tbSettingsSubmitTitle.Text );
             SetAttributeValue( "ContentTemplate", ceSettingsContentTemplate.Text );
             SetAttributeValue( "LavaDebug", cbSettingsLavaDebug.Checked.ToString() );
@@ -434,6 +641,9 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
             mdSettings.Hide();
             pnlSettingsModal.Visible = false;
+
+            pnlGroupList.Visible = true;
+            pnlGroupAttributes.Visible = false;
 
             ShowGroups( true );
         }
@@ -461,6 +671,58 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             else
             {
                 grpSettingsRole.Visible = false;
+            }
+        }
+
+        /// <summary>
+        /// Handles the BlockUpdated event of the control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void Block_BlockUpdated( object sender, EventArgs e )
+        {
+            pnlGroupList.Visible = true;
+            pnlGroupAttributes.Visible = false;
+
+            ShowGroups( true );
+        }
+
+        /// <summary>
+        /// Scroll the viewport so that the control is at the top of the screen.
+        /// </summary>
+        /// <param name="control">Control to scroll into the viewport.</param>
+        protected void ScrollToControl( Control control )
+        {
+            string script = string.Format( "var bounds = document.getElementById('{0}').getBoundingClientRect(); if (bounds.top > window.innerHeight || bounds.bottom < 0) {{ $('html, body').animate({{ scrollTop: $('#{0}').offset().top - 10 }}, 250); }}", control.ClientID );
+
+            ScriptManager.RegisterStartupScript( Page, GetType(), "ScrollToControl", script, true );
+        }
+
+        protected void wtpSettingsSubmissionWorkflow_SelectItem( object sender, EventArgs e )
+        {
+            WorkflowType submissionWorkflowType = (wtpSettingsSubmissionWorkflow.SelectedValueAsId().HasValue ? new WorkflowTypeService( new RockContext() ).Get( wtpSettingsSubmissionWorkflow.SelectedValueAsId().Value ) : new WorkflowType());
+            string selection = ddlSettingsSubmissionAttribute.SelectedValue;
+
+            LoadSubmissionWorkflowAttributes( submissionWorkflowType );
+            ddlSettingsSubmissionAttribute.SelectedValue = ddlSettingsSubmissionAttribute.Items.FindByValue( selection ) != null ? selection : string.Empty;
+        }
+
+        protected void LoadSubmissionWorkflowAttributes( WorkflowType workflowType )
+        {
+            ddlSettingsSubmissionAttribute.Items.Clear();
+            ddlSettingsSubmissionAttribute.Items.Add( string.Empty );
+
+            if ( workflowType != null )
+            {
+                new AttributeService( new RockContext() )
+                    .GetByEntityTypeId( new Workflow().TypeId ).AsQueryable()
+                    .Where( a =>
+                        a.EntityTypeQualifierColumn.Equals( "WorkflowTypeId", StringComparison.OrdinalIgnoreCase ) &&
+                        a.EntityTypeQualifierValue.Equals( workflowType.Id.ToString() ) )
+                    .OrderBy( a => a.Order )
+                    .ThenBy( a => a.Name )
+                    .ToList()
+                    .ForEach( a => ddlSettingsSubmissionAttribute.Items.Add( a.Name ) );
             }
         }
     }

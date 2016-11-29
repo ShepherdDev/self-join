@@ -3,6 +3,8 @@
 <asp:UpdatePanel ID="upnlContent" runat="server">
     <ContentTemplate>
         <Rock:NotificationBox ID="nbWarningMessage" runat="server" NotificationBoxType="Warning" />
+        <Rock:NotificationBox ID="nbErrorMessage" runat="server" NotificationBoxType="Danger" />
+        <Rock:NotificationBox ID="nbSuccessMessage" runat="server" NotificationBoxType="Success" />
 
         <asp:Panel ID="pnlGroupList" CssClass="panel panel-block" runat="server">
             <div class="panel-body">
@@ -62,6 +64,27 @@
                                             <Rock:RockCheckBox ID="cbSettingsAllowRemove" runat="server" Label="Allow Remove" Help="Allow a user to remove themselves from a group they are already in." />
                                             <Rock:NumberBox ID="nbSettingsMinimumSelection" runat="server" Label="Minimum Selection" Help="The minimum number of selections that the user must select before proceeding." NumberType="Integer" MinimumValue="0" MaximumValue="2147483647" Required="true" />
                                             <Rock:NumberBox ID="nbSettingsMaximumSelection" runat="server" Label="Maximum Selection" Help="The maximum number of checkboxes that the user can select. Has no effect on radio buttons. Set to 0 for unlimited." NumberType="Integer" MinimumValue="0" MaximumValue="2147483647" Required="true" />
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <div class="panel panel-default">
+                                        <div class="panel-heading">
+                                            <h3 class="panel-title">Post-Save Actions</h3>
+                                        </div>
+                                        <div class="panel-body">
+                                            <div class="col-md-6">
+                                                <Rock:PagePicker ID="ppSettingsSaveRedirectPage" runat="server" Label="Save Redirect Page" Help="The page to redirect the user to after all their changes have been saved." Required="false" />
+                                                <Rock:WorkflowTypePicker ID="wtpSettingsIndividualWorkflow" runat="server" Label="Individual Workflow" Help="Activate the selected workflow for each individual GroupMember record created (also fires if an GroupMember changes from Inactive to Pending or Active). The GroupMember is passed as the Entity to the workflow." Required="false" />
+                                            </div>
+                                            <div class="col-md-6">
+                                                <Rock:WorkflowTypePicker ID="wtpSettingsSubmissionWorkflow" runat="server" Label="Submission Workflow" Help="Activate the selected workflow one time for each submission. The CurrentPerson is passed as the Entity to the workflow." Required="false" OnSelectItem="wtpSettingsSubmissionWorkflow_SelectItem" />
+                                                <Rock:RockDropDownList ID="ddlSettingsSubmissionAttribute" runat="server" Label="Submission Attribute" Help="Attribute to store the group member GUIDs into as a comma separated list." Required="false" />
+                                            </div>
+                                            <Rock:CodeEditor ID="ceSettingsSavedTemplate" runat="server" Label="Saved Template" Help="Message to be displayed to the user once all their selections have been saved. Lava objects 'Added' and 'Removed' are arrays of GroupMember objects for the groups they were added or removed from." Required="false" EditorMode="Lava" EditorHeight="200" EditorTheme="Rock" />
                                         </div>
                                     </div>
                                 </div>
