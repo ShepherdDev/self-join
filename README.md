@@ -1,5 +1,6 @@
 ﻿### Settings
 
+![Settings](https://github.com/ShepherdDev/self-join/raw/master/Documentation/Settings.png)
 
 #### General
 
