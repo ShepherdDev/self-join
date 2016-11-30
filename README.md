@@ -101,3 +101,16 @@ The list of GroupMember records can optionally be passed to the
 workflow via the attribute specified in the `Submission
 Attribute` setting. The list is passed as a string of GUIDs,
 each separated by a comma.
+
+### Group Member Attributes
+
+As mentioned, if the block is configured to ask for Group Member
+Attributes then the user will be asked to fill in the values
+before actually being added to the group. If the Attribute is
+marked as required then the user will be forced to fill it in
+before they are added. All group attributes are presented on
+a single page. If more than one group has attributes to be
+entered then all groups are shown on the same page seperated by
+a header title.
+
+![MoreInfo](https://github.com/ShepherdDev/self-join/raw/master/Documentation/MoreInfo.png)
