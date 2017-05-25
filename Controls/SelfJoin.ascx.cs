@@ -122,6 +122,12 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             btnSubmit.Text = GetAttributeValue( "SubmitTitle" );
             btnAttributesSubmit.Text = btnSubmit.Text;
 
+            if ( CurrentPerson == null )
+            {
+                nbWarningMessage.Text = "You must be logged in to properly view this page.";
+                return;
+            }
+
             if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "Group" ) ) )
             {
                 _group = new GroupService( new RockContext() ).Get( GetAttributeValue( "Group" ).AsGuid() );
