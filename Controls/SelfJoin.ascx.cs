@@ -16,7 +16,7 @@ using Rock.Web.UI;
 namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 {
     [DisplayName( "Self Join" )]
-    [Category( "com_shepherdchurch > Self Join" )]
+    [Category( "Shepherd Church > Self Join" )]
     [Description( "Allows logged in users to join and un-join from specific groups." )]
 
     #region Block Fields
@@ -33,7 +33,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
     [LinkedPage( "Save Redirect Page", "The page to redirect the user to after all their changes have been saved.", false, category: "CustomSetting" )]
     [WorkflowTypeField( "Individual Workflow", "Activate the selected workflow for each individual GroupMember record created (also fires if an GroupMember changes from Inactive to Pending or Active). The GroupMember is passed as the Entity to the workflow.", category: "CustomSetting" )]
     [WorkflowTypeField( "Submission Workflow", "Activate the selected workflow one time for each submission. The CurrentPerson is passed as the Entity to the workflow.", category: "CustomSetting" )]
-    [TextField( "Submission Attribute", "Attribute to store the group member GUIDs into as a comma separated list." )]
+    [TextField( "Submission Attribute", "Attribute to store the group member GUIDs into as a comma separated list.", false, "", category: "CustomSetting" )]
     [CodeEditorField( "Saved Template", "Message to be displayed to the user once all their selections have been saved. Lava objects 'Added' and 'Removed' are arrays of GroupMember objects for the groups they were added or removed from.", Rock.Web.UI.Controls.CodeEditorMode.Lava, height: 400, category: "CustomSetting", defaultValue: @"Thank you for your interest. You have been added to the following groups:
 <ul>
     {% for gm in Added %}
@@ -400,7 +400,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             var added = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Added || (c.State == EntityState.Modified && ( GroupMemberStatus )c.OriginalValues["GroupMemberStatus"] == GroupMemberStatus.Inactive) ).Select( c => c.Entity ).ToList();
             var removed = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Modified && ( GroupMemberStatus )c.CurrentValues["GroupMemberStatus"] == GroupMemberStatus.Inactive ).Select( c => c.Entity ).ToList();
 
-            //rockContext.SaveChanges();
+            rockContext.SaveChanges();
             TriggerWorkflows( added );
 
             if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "SavedTemplate" ) ) )

@@ -80,15 +80,21 @@
                                             <h3 class="panel-title">Post-Save Actions</h3>
                                         </div>
                                         <div class="panel-body">
-                                            <div class="col-md-6">
-                                                <Rock:PagePicker ID="ppSettingsSaveRedirectPage" runat="server" Label="Save Redirect Page" Help="The page to redirect the user to after all their changes have been saved." Required="false" />
-                                                <Rock:WorkflowTypePicker ID="wtpSettingsIndividualWorkflow" runat="server" Label="Individual Workflow" Help="Activate the selected workflow for each individual GroupMember record created (also fires if an GroupMember changes from Inactive to Pending or Active). The GroupMember is passed as the Entity to the workflow." Required="false" />
+                                            <div class="row">
+                                                <div class="col-md-6">
+                                                    <Rock:PagePicker ID="ppSettingsSaveRedirectPage" runat="server" Label="Save Redirect Page" Help="The page to redirect the user to after all their changes have been saved." Required="false" />
+                                                    <Rock:WorkflowTypePicker ID="wtpSettingsIndividualWorkflow" runat="server" Label="Individual Workflow" Help="Activate the selected workflow for each individual GroupMember record created (also fires if an GroupMember changes from Inactive to Pending or Active). The GroupMember is passed as the Entity to the workflow." Required="false" />
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <Rock:WorkflowTypePicker ID="wtpSettingsSubmissionWorkflow" runat="server" Label="Submission Workflow" Help="Activate the selected workflow one time for each submission. The CurrentPerson is passed as the Entity to the workflow." Required="false" OnSelectItem="wtpSettingsSubmissionWorkflow_SelectItem" />
+                                                    <Rock:RockDropDownList ID="ddlSettingsSubmissionAttribute" runat="server" Label="Submission Attribute" Help="Attribute to store the group member GUIDs into as a comma separated list." Required="false" />
+                                                </div>
                                             </div>
-                                            <div class="col-md-6">
-                                                <Rock:WorkflowTypePicker ID="wtpSettingsSubmissionWorkflow" runat="server" Label="Submission Workflow" Help="Activate the selected workflow one time for each submission. The CurrentPerson is passed as the Entity to the workflow." Required="false" OnSelectItem="wtpSettingsSubmissionWorkflow_SelectItem" />
-                                                <Rock:RockDropDownList ID="ddlSettingsSubmissionAttribute" runat="server" Label="Submission Attribute" Help="Attribute to store the group member GUIDs into as a comma separated list." Required="false" />
+                                            <div class="row">
+                                                <div class="col-md-12">
+                                                    <Rock:CodeEditor ID="ceSettingsSavedTemplate" runat="server" Label="Saved Template" Help="Message to be displayed to the user once all their selections have been saved. Lava objects 'Added' and 'Removed' are arrays of GroupMember objects for the groups they were added or removed from." Required="false" EditorMode="Lava" EditorHeight="200" EditorTheme="Rock" />
+                                                </div>
                                             </div>
-                                            <Rock:CodeEditor ID="ceSettingsSavedTemplate" runat="server" Label="Saved Template" Help="Message to be displayed to the user once all their selections have been saved. Lava objects 'Added' and 'Removed' are arrays of GroupMember objects for the groups they were added or removed from." Required="false" EditorMode="Lava" EditorHeight="200" EditorTheme="Rock" />
                                         </div>
                                     </div>
                                 </div>
