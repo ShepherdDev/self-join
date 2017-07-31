@@ -93,6 +93,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         Group _group = null;
         bool _isGroupMembershipRebind = false;
         bool _isKoiskMode = false;
+        Person _person = null;
 
         protected int MinimumSelection = 0;
         protected int MaximumSelection = 0;
@@ -121,9 +122,13 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 RockPage.AddScriptLink( "~/Scripts/Kiosk/kiosk-core.js" );
             }
 
-
-
             RockPage.AddScriptLink( "~/Plugins/com_shepherdchurch/SelfJoin/Scripts/SelfJoin.js" );
+
+            _person = CurrentPerson;
+            if ( !string.IsNullOrWhiteSpace( PageParameter( "Person" ) ) )
+            {
+                _person = new PersonService( new RockContext() ).Get( PageParameter( "Person" ).AsGuid() );
+            }
         }
 
         /// <summary>
@@ -139,7 +144,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             btnCancel.Visible = !string.IsNullOrWhiteSpace( GetAttributeValue( "CancelPage" ) );
             btnCancelKiosk.Visible = btnCancel.Visible;
 
-            if ( CurrentPerson == null )
+            if ( _person == null )
             {
                 nbWarningMessage.Text = "You must be logged in to properly view this page.";
                 return;
@@ -243,7 +248,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
             if ( group != null )
             {
-                GroupMember member = group.Members.Where( m => m.PersonId == CurrentPerson.Id && m.GroupMemberStatus != GroupMemberStatus.Inactive ).FirstOrDefault();
+                GroupMember member = group.Members.Where( m => m.PersonId == _person.Id && m.GroupMemberStatus != GroupMemberStatus.Inactive ).FirstOrDefault();
 
                 if ( group.IsActive && member != null && member.Id != 0 )
                 {
@@ -265,7 +270,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         void ShowGroups( bool setValues )
         {
             string template = GetAttributeValue( "ContentTemplate" ) ?? string.Empty;
-            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, CurrentPerson );
+            var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, _person );
             List<GroupMember> membership = GetExistingMembership( _group );
             string membershipString = membership.Select( m => m.Group.Guid.ToString() ).ToList().AsDelimited( "," );
 
@@ -326,7 +331,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             List<GroupMember> attributeMembers = new List<GroupMember>();
             GroupMemberService memberService = new GroupMemberService( rockContext );
             GroupService groupService = new GroupService( rockContext );
-            Person currentPerson = new PersonService( rockContext ).Get( CurrentPerson.Id );
+            Person person = new PersonService( rockContext ).Get( _person.Id );
             GroupMemberStatus status = ( GroupMemberStatus )Enum.Parse( typeof( GroupMemberStatus ), (GetAttributeValue( "AddAsStatus" ) ?? string.Empty) );
 
             foreach ( string g in hfSelection.Value.Split( ',' ) )
@@ -346,7 +351,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 //
                 // Find the existing record, otherwise create a new one.
                 //
-                member = group.Members.Where( gm => gm.PersonId == CurrentPersonId ).FirstOrDefault();
+                member = group.Members.Where( gm => gm.PersonId == _person.Id ).FirstOrDefault();
                 if ( member == null )
                 {
                     member = new GroupMember { Id = 0 };
@@ -354,7 +359,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
                     member.Group = group;
                     member.GroupId = member.Group.Id;
-                    member.Person = currentPerson;
+                    member.Person = person;
                     member.PersonId = member.Person.Id;
                     member.DateTimeAdded = RockDateTime.Now;
                     member.GroupRoleId = member.Group.GroupType.DefaultGroupRoleId ?? 0;
@@ -442,13 +447,13 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             var added = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Added || (c.State == EntityState.Modified && ( GroupMemberStatus )c.OriginalValues["GroupMemberStatus"] == GroupMemberStatus.Inactive) ).Select( c => c.Entity ).ToList();
             var removed = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Modified && ( GroupMemberStatus )c.CurrentValues["GroupMemberStatus"] == GroupMemberStatus.Inactive ).Select( c => c.Entity ).ToList();
 
-//            rockContext.SaveChanges();
+            rockContext.SaveChanges();
             TriggerWorkflows( added );
 
             if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "SavedTemplate" ) ) )
             {
                 string template = GetAttributeValue( "SavedTemplate" ) ?? string.Empty;
-                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, CurrentPerson );
+                var mergeFields = Rock.Lava.LavaHelper.GetCommonMergeFields( RockPage, _person );
 
                 //
                 // Add our custom merge fields and generate the content.
@@ -500,7 +505,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                     {
                         try
                         {
-                            workflow = Workflow.Activate( workflowType, CurrentPerson.FullName, rockContext );
+                            workflow = Workflow.Activate( workflowType, _person.FullName, rockContext );
                             if ( workflow != null )
                             {
                                 List<string> workflowErrors;
@@ -528,7 +533,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 {
                     try
                     {
-                        workflow = Workflow.Activate( workflowType, CurrentPerson.FullName, rockContext );
+                        workflow = Workflow.Activate( workflowType, _person.FullName, rockContext );
                         if ( workflow != null )
                         {
                             List<string> workflowErrors;
@@ -538,7 +543,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                                 string guids = membership.Select( gm => gm.Guid.ToString() ).ToList().AsDelimited( "," );
                                 workflow.SetAttributeValue( GetAttributeValue( "SubmissionAttribute" ), guids );
                             }
-                            workflowService.Process( workflow, CurrentPerson, out workflowErrors );
+                            workflowService.Process( workflow, _person, out workflowErrors );
                         }
                     }
                     catch ( Exception ex )
