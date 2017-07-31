@@ -1,8 +1,7 @@
 ﻿(function ($) {
-    window.SelfJoin = function (ClientID, HiddenField, SaveButton, MinimumSelection, MaximumSelection, LockedValues) {
+    window.SelfJoin = function (ClientID, HiddenField, MinimumSelection, MaximumSelection, LockedValues) {
         this.clientID = ClientID;
         this.hiddenField = HiddenField;
-        this.saveButton = SaveButton;
         this.minCount = MinimumSelection;
         this.maxCount = MaximumSelection;
         this.lockedValues = LockedValues.split(',');
@@ -34,10 +33,10 @@
 
             /* If we are within the allowed numbers, enable the save button. */
             if ((this.minCount == 0 || checkedCount >= this.minCount) && (this.maxCount == 0 || checkedCount <= this.maxCount)) {
-                $('#' + this.saveButton).prop('disabled', false);
+                $('#' + this.clientID + ' .js-save-button').prop('disabled', false);
             }
             else {
-                $('#' + this.saveButton).prop('disabled', true);
+                $('#' + this.clientID + ' .js-save-button').prop('disabled', true);
             }
 
             this.updateHiddenField();

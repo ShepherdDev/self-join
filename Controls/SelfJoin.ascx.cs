@@ -21,10 +21,11 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
     #region Block Fields
 
-    [GroupField( "Group", "The group to use as a root for showing selections. This is passed to the Lava parser as a property called Group and can be used to build the list of checkboxes or radio buttons.", true, category: "CustomSetting" )]
-    [GroupRoleField("", "Group Role", "The group role to use when adding new members to the group. If the group does not have this role then the default role will be used instead.", true, category: "CustomSetting" )]
+    [GroupField( "Group", "The group to use as a root for showing selections. This is passed to the Lava parser as a property called Group and can be used to build the list of checkboxes or radio buttons.", false, category: "CustomSetting" )]
+    [GroupRoleField("", "Group Role", "The group role to use when adding new members to the group. If the group does not have this role then the default role will be used instead.", false, category: "CustomSetting" )]
     [EnumField( "Add As Status", "The member status to add new members to the group with. Group and Role capacities will only be enforced if this is set to Active.", typeof( GroupMemberStatus ), true, "2", category: "CustomSetting" )]
     [CustomDropdownListField( "Request Member Attributes", "If a Group has Member Attributes defined then you can set if you want those attributes to be filled in by the user. If set to Required then the user will only be prompted for Attributes that are marked as Required. If set to All then the user will be prompted for all Attributes. Otherwise no attributes will be prompted for.", "None,Required,All", true, "None", category: "CustomSetting" )]
+    [LinkedPage( "Cancel Page", "If a Cancel button should be displayed then select the page the user will be redirected to.", false, category: "CustomSetting" )]
 
     [BooleanField( "Allow Remove", "Allow a user to remove themselves from a group they are already in. If No then any checkboxes will be disabled for these groups. Radio buttons can still be deselected, however the internal logic will not remove them from the group.", false, category: "CustomSetting" )]
     [IntegerField( "Minimum Selection", "The minimum number of selections that the user must select before proceeding.", true, 0, category: "CustomSetting" )]
@@ -42,6 +43,8 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 </ul>" )]
 
     [TextField( "Submit Title", "Title of the Submit button to show to the user.", true, "Submit", category: "CustomSetting" )]
+    [TextField( "Header Title", "The title to use for the block.", true, "Options", category: "CustomSetting" )]
+    [BooleanField( "Kiosk Mode", "Changes interface to support kiosk mode with touch-based scrolling.", false, category: "CustomSetting" )]
     [CodeEditorField( "Content Template", "Template to use for the content that generates the checkboxes or radio buttons. Any checkbox or radio button will automatically be selected and enabled/disabled as needed. The Lava property Name can be used as a unique name key for the input controls though it is not required to match. If a checkbox or radio button is disabled or enabled then a jQuery disabled and enabled event will be triggered allowing you to do custom UI updates.", Rock.Web.UI.Controls.CodeEditorMode.Lava, height: 400, required: true, category: "CustomSetting", defaultValue: @"<ul class=""rocktree"">
     {% for g1 in Group.Groups %}
     {% if g1.IsActive == true and g1.IsPublic == true %}
@@ -89,6 +92,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
         Group _group = null;
         bool _isGroupMembershipRebind = false;
+        bool _isKoiskMode = false;
 
         protected int MinimumSelection = 0;
         protected int MaximumSelection = 0;
@@ -109,6 +113,17 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             // this event gets fired after block settings are updated. it's nice to repaint the screen if these settings would alter it
             this.BlockUpdated += Block_BlockUpdated;
             this.AddConfigurationUpdateTrigger( upnlContent );
+
+            _isKoiskMode = GetAttributeValue( "KioskMode" ).AsBoolean( false );
+            if ( _isKoiskMode )
+            {
+                RockPage.AddScriptLink( "~/Scripts/iscroll.js" );
+                RockPage.AddScriptLink( "~/Scripts/Kiosk/kiosk-core.js" );
+            }
+
+
+
+            RockPage.AddScriptLink( "~/Plugins/com_shepherdchurch/SelfJoin/Scripts/SelfJoin.js" );
         }
 
         /// <summary>
@@ -118,9 +133,11 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="e">Arguments that describe this event.</param>
         protected void Page_Load( object sender, EventArgs e )
         {
-            RockPage.AddScriptLink( "~/Plugins/com_shepherdchurch/SelfJoin/Scripts/SelfJoin.js" );
             btnSubmit.Text = GetAttributeValue( "SubmitTitle" );
+            btnSubmitKiosk.Text = GetAttributeValue( "SubmitTitle" );
             btnAttributesSubmit.Text = btnSubmit.Text;
+            btnCancel.Visible = !string.IsNullOrWhiteSpace( GetAttributeValue( "CancelPage" ) );
+            btnCancelKiosk.Visible = btnCancel.Visible;
 
             if ( CurrentPerson == null )
             {
@@ -128,17 +145,24 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 return;
             }
 
-            if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "Group" ) ) )
+            if ( !string.IsNullOrWhiteSpace( PageParameter( "Group" ) ) )
+            {
+                _group = new GroupService( new RockContext() ).Get( PageParameter( "Group" ).AsGuid() );
+            }
+            else if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "Group" ) ) )
             {
                 _group = new GroupService( new RockContext() ).Get( GetAttributeValue( "Group" ).AsGuid() );
             }
 
             if ( !IsPostBack )
             {
+                pnlGroupList.Visible = !_isKoiskMode;
+                pnlGroupListKiosk.Visible = _isKoiskMode;
+
                 ShowGroups( true );
             }
 
-            if ( pnlGroupAttributes.Visible )
+            if ( pnlGroupAttributes.Visible || pnlGroupAttributesKiosk.Visible )
             {
                 BindGroupMembership( false, GetAttributeMembershipRecords() );
             }
@@ -169,6 +193,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             ddlSettingsAddAsStatus.BindToEnum<GroupMemberStatus>( true, new GroupMemberStatus[] { GroupMemberStatus.Inactive } );
             ddlSettingsAddAsStatus.SelectedValue = GetAttributeValue( "AddAsStatus" );
             ddlSettingsRequestMemberAttributes.SelectedValue = GetAttributeValue( "RequestMemberAttributes" );
+            ppCancelPage.SetValue( new PageService( new RockContext() ).Get( GetAttributeValue( "CancelPage" ).AsGuid() ) );
 
             //
             // Fill in the Limitation section.
@@ -193,6 +218,8 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             // Fill in the User Interface section.
             //
             tbSettingsSubmitTitle.Text = GetAttributeValue( "SubmitTitle" );
+            tbSettingsHeaderTitle.Text = GetAttributeValue( "HeaderTitle" );
+            cbSettingsKioskMode.Checked = GetAttributeValue( "KioskMode" ).AsBoolean( false );
             ceSettingsContentTemplate.Text = GetAttributeValue( "ContentTemplate" );
             cbSettingsLavaDebug.Checked = GetAttributeValue( "LavaDebug" ).AsBoolean();
 
@@ -259,7 +286,14 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             mergeFields.Add( "Group", _group );
             mergeFields.Add( "Name", ClientID );
             mergeFields.Add( "Membership", membership.Select( m => m.Group.Guid.ToString() ).ToList() );
-            ltContent.Text = template.ResolveMergeFields( mergeFields );
+            if ( !_isKoiskMode )
+            {
+                ltContent.Text = template.ResolveMergeFields( mergeFields );
+            }
+            else
+            {
+                ltContentKiosk.Text = template.ResolveMergeFields( mergeFields );
+            }
 
             //
             // If they have Lava Debug turned on then dump out the lava debug information.
@@ -375,9 +409,11 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="members">List of GroupMember records to bind to.</param>
         void BindGroupMembership( bool setValues, List<GroupMember> members )
         {
+            Repeater rptr = pnlGroupAttributes.Visible ? rptrGroupAttributes : rptrGroupAttributesKiosk;
+
             _isGroupMembershipRebind = !setValues;
-            rptrGroupAttributes.DataSource = members;
-            rptrGroupAttributes.DataBind();
+            rptr.DataSource = members;
+            rptr.DataBind();
         }
 
         /// <summary>
@@ -406,7 +442,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             var added = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Added || (c.State == EntityState.Modified && ( GroupMemberStatus )c.OriginalValues["GroupMemberStatus"] == GroupMemberStatus.Inactive) ).Select( c => c.Entity ).ToList();
             var removed = rockContext.ChangeTracker.Entries<GroupMember>().Where( c => c.State == EntityState.Modified && ( GroupMemberStatus )c.CurrentValues["GroupMemberStatus"] == GroupMemberStatus.Inactive ).Select( c => c.Entity ).ToList();
 
-            rockContext.SaveChanges();
+//            rockContext.SaveChanges();
             TriggerWorkflows( added );
 
             if ( !string.IsNullOrWhiteSpace( GetAttributeValue( "SavedTemplate" ) ) )
@@ -422,7 +458,9 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 nbSuccessMessage.Text = template.ResolveMergeFields( mergeFields );
 
                 pnlGroupList.Visible = false;
+                pnlGroupListKiosk.Visible = false;
                 pnlGroupAttributes.Visible = false;
+                pnlGroupAttributesKiosk.Visible = false;
 
                 ScrollToControl( nbSuccessMessage );
             }
@@ -599,10 +637,13 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             if ( attributeMembership.Any() )
             {
                 pnlGroupList.Visible = false;
+                pnlGroupListKiosk.Visible = false;
                 pnlLavaDebug.Visible = false;
-                pnlGroupAttributes.Visible = true;
+                pnlGroupAttributes.Visible = !_isKoiskMode;
+                pnlGroupAttributesKiosk.Visible = _isKoiskMode;
 
                 rptrGroupAttributes.Controls.Clear();
+                rptrGroupAttributesKiosk.Controls.Clear();
                 BindGroupMembership( true, attributeMembership );
             }
             else
@@ -619,8 +660,10 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnAttributesBack_Click( object sender, EventArgs e )
         {
-            pnlGroupList.Visible = true;
+            pnlGroupList.Visible = !_isKoiskMode;
+            pnlGroupListKiosk.Visible = _isKoiskMode;
             pnlGroupAttributes.Visible = false;
+            pnlGroupAttributesKiosk.Visible = false;
 
             ShowGroups( false );
         }
@@ -632,11 +675,12 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void btnAttributesSubmit_Click( object sender, EventArgs e )
         {
+            Repeater rptr = pnlGroupAttributes.Visible ? rptrGroupAttributes : rptrGroupAttributesKiosk;
             RockContext rockContext = new RockContext();
             var membership = GetMembershipRecords( rockContext );
             var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
 
-            if ( attributeMembership.Count == rptrGroupAttributes.Controls.Count )
+            if ( attributeMembership.Count == rptr.Controls.Count )
             {
                 //
                 // This is a pretty serious hack, but since a placeholder is a really simple control it should
@@ -645,7 +689,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 //
                 for ( int i = 0; i < attributeMembership.Count; i++ )
                 {
-                    PlaceHolder phAttributes = ( PlaceHolder )rptrGroupAttributes.Controls[i].FindControl( "phAttributes" );
+                    PlaceHolder phAttributes = ( PlaceHolder )rptr.Controls[i].FindControl( "phAttributes" );
 
                     Helper.GetEditValues( phAttributes, attributeMembership[i] );
                 }
@@ -657,6 +701,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             {
                 nbErrorMessage.Text = "An unexpected error occurred trying to read your selections.";
                 pnlGroupAttributes.Visible = false;
+                pnlGroupAttributesKiosk.Visible = false;
                 ScrollToControl( nbErrorMessage );
             }
         }
@@ -668,12 +713,15 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void lbSettingsSave_Click( object sender, EventArgs e )
         {
-            Group group = new GroupService( new RockContext() ).Get( gpSettingsGroup.SelectedValue.AsInteger() );
+            var rockContext = new RockContext();
+            var group = new GroupService( rockContext ).Get( gpSettingsGroup.SelectedValue.AsInteger() );
+            var cancelPage = new PageService( rockContext ).Get( ppCancelPage.SelectedValue.AsInteger() );
 
             SetAttributeValue( "Group", (group.Id != 0 ? group.Guid.ToString() : string.Empty) );
             SetAttributeValue( "GroupRole", (grpSettingsRole.GroupRoleId.HasValue ? grpSettingsRole.GroupRoleId.Value.ToString() : string.Empty) );
             SetAttributeValue( "AddAsStatus", ddlSettingsAddAsStatus.SelectedValue );
             SetAttributeValue( "RequestMemberAttributes", ddlSettingsRequestMemberAttributes.SelectedValue );
+            SetAttributeValue( "CancelPage", cancelPage != null ? cancelPage.Guid.ToString() : string.Empty );
 
             SetAttributeValue( "AllowRemove", cbSettingsAllowRemove.Checked.ToString() );
             SetAttributeValue( "MinimumSelection", nbSettingsMinimumSelection.Text );
@@ -686,6 +734,8 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             SetAttributeValue( "SavedTemplate", ceSettingsSavedTemplate.Text );
 
             SetAttributeValue( "SubmitTitle", tbSettingsSubmitTitle.Text );
+            SetAttributeValue( "HeaderTitle", tbSettingsHeaderTitle.Text );
+            SetAttributeValue( "KioskMode", cbSettingsKioskMode.Checked.ToString() );
             SetAttributeValue( "ContentTemplate", ceSettingsContentTemplate.Text );
             SetAttributeValue( "LavaDebug", cbSettingsLavaDebug.Checked.ToString() );
 
@@ -694,8 +744,11 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             mdSettings.Hide();
             pnlSettingsModal.Visible = false;
 
-            pnlGroupList.Visible = true;
+            _isKoiskMode = cbSettingsKioskMode.Checked;
+            pnlGroupList.Visible = !_isKoiskMode;
+            pnlGroupListKiosk.Visible = _isKoiskMode;
             pnlGroupAttributes.Visible = false;
+            pnlGroupListKiosk.Visible = false;
 
             ShowGroups( true );
         }
@@ -707,8 +760,10 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         protected void Block_BlockUpdated( object sender, EventArgs e )
         {
-            pnlGroupList.Visible = true;
+            pnlGroupList.Visible = !_isKoiskMode;
+            pnlGroupListKiosk.Visible = _isKoiskMode;
             pnlGroupAttributes.Visible = false;
+            pnlGroupAttributesKiosk.Visible = false;
 
             ShowGroups( true );
         }
@@ -763,6 +818,16 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
             LoadSubmissionWorkflowAttributes( submissionWorkflowType );
             ddlSettingsSubmissionAttribute.SelectedValue = ddlSettingsSubmissionAttribute.Items.FindByValue( selection ) != null ? selection : string.Empty;
+        }
+
+        /// <summary>
+        /// Handles the Click event of the btnCancel control.
+        /// </summary>
+        /// <param name="sender">The source of the event.</param>
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        protected void btnCancel_Click( object sender, EventArgs e )
+        {
+            NavigateToLinkedPage( "CancelPage" );
         }
 
         #endregion

@@ -2,37 +2,97 @@
 
 <asp:UpdatePanel ID="upnlContent" runat="server">
     <ContentTemplate>
-        <Rock:NotificationBox ID="nbWarningMessage" runat="server" NotificationBoxType="Warning" />
-        <Rock:NotificationBox ID="nbErrorMessage" runat="server" NotificationBoxType="Danger" />
-        <Rock:NotificationBox ID="nbSuccessMessage" runat="server" NotificationBoxType="Success" />
+        <asp:Panel ID="pnlContent" runat="server">
+            <Rock:NotificationBox ID="nbWarningMessage" runat="server" NotificationBoxType="Warning" />
+            <Rock:NotificationBox ID="nbErrorMessage" runat="server" NotificationBoxType="Danger" />
+            <Rock:NotificationBox ID="nbSuccessMessage" runat="server" NotificationBoxType="Success" />
+            <asp:HiddenField ID="hfSelection" runat="server" />
 
-        <asp:Panel ID="pnlGroupList" CssClass="panel panel-block" runat="server">
-            <div class="panel-body">
-                <asp:HiddenField ID="hfSelection" runat="server" />
-                <asp:Panel ID="pnlContent" runat="server">
+            <asp:Panel ID="pnlGroupList" CssClass="panel panel-block" runat="server">
+                <div class="panel-heading">
+                    <h3 id="hTitle" runat="server" class="panel-title">Serving Options</h3>
+                </div>
+
+                <div class="panel-body">
                     <asp:Literal ID="ltContent" runat="server" />
-                </asp:Panel>
-            </div>
+                </div>
 
-            <div class="panel-footer">
-                <asp:Button ID="btnSubmit" runat="server" CssClass="btn btn-primary" Text="Save" OnClick="btnSubmit_Click" />
-            </div>
-        </asp:Panel>
+                <div class="panel-footer">
+                    <asp:Button ID="btnSubmit" runat="server" CssClass="btn btn-primary" Text="Save" OnClick="btnSubmit_Click" />
+                    <asp:Button ID="btnCancel" runat="server" CssClass="btn btn-default" Text="Cancel" OnClick="btnCancel_Click" CausesValidation="false" />
+                </div>
+            </asp:Panel>
 
-        <asp:Panel ID="pnlLavaDebug" runat="server" Visible="false">
-            <asp:Literal ID="ltLavaDebug" runat="server" />
-        </asp:Panel>
+            <asp:Panel ID="pnlGroupListKiosk" runat="server" CssClass="js-kioskscrollpanel" Visible="false">
+                <header><h1 id="hTitleKiosk" runat="server">Serving Options</h1></header>
 
-        <asp:Panel ID="pnlGroupAttributes" runat="server" Visible="false">
-            <asp:Repeater ID="rptrGroupAttributes" runat="server" OnItemDataBound="rptrGroupAttributes_ItemDataBound">
-                <ItemTemplate>
-                    <h3>Information needed for <%# Eval("Group.Name") %></h3>
-                    <asp:PlaceHolder ID="phAttributes" runat="server" />
-                </ItemTemplate>
-            </asp:Repeater>
+                <main class="clearfix js-scrollcontainer">
+                    <div class="scrollpanel">
+                        <div class="scroller">
+                            <asp:Literal ID="ltContentKiosk" runat="server" />
+                        </div>
+                    </div>
+                </main>
+                <footer>
+                    <div class="container">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <asp:Button ID="btnCancelKiosk" runat="server" CssClass="btn btn-default btn-kiosk" Text="Cancel" OnClick="btnCancel_Click" CausesValidation="false" />
+                            </div>
 
-            <asp:Button ID="btnAttributesBack" runat="server" CssClass="btn btn-default" Text="Back" OnClick="btnAttributesBack_Click" CausesValidation="false" />
-            <asp:Button ID="btnAttributesSubmit" runat="server" CssClass="btn btn-primary" Text="Submit" OnClick="btnAttributesSubmit_Click" />
+                            <div class="col-md-4">
+                                <asp:Button ID="btnSubmitKiosk" runat="server" CssClass="btn btn-primary btn-kiosk js-submit-button pull-right" Text="Save" OnClick="btnSubmit_Click" />
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+            </asp:Panel>
+
+            <asp:Panel ID="pnlLavaDebug" runat="server" Visible="false">
+                <asp:Literal ID="ltLavaDebug" runat="server" />
+            </asp:Panel>
+
+            <asp:Panel ID="pnlGroupAttributes" runat="server" Visible="false">
+                <asp:Repeater ID="rptrGroupAttributes" runat="server" OnItemDataBound="rptrGroupAttributes_ItemDataBound">
+                    <ItemTemplate>
+                        <h3>Information needed for <%# Eval("Group.Name") %></h3>
+                        <asp:PlaceHolder ID="phAttributes" runat="server" />
+                    </ItemTemplate>
+                </asp:Repeater>
+
+                <asp:Button ID="btnAttributesBack" runat="server" CssClass="btn btn-default" Text="Back" OnClick="btnAttributesBack_Click" CausesValidation="false" />
+                <asp:Button ID="btnAttributesSubmit" runat="server" CssClass="btn btn-primary" Text="Submit" OnClick="btnAttributesSubmit_Click" />
+            </asp:Panel>
+
+            <asp:Panel ID="pnlGroupAttributesKiosk" runat="server" CssClass="js-kioskscrollpanel" Visible="false">
+                <header><h1 id="hAttributesTitleKiosk" runat="server">Serving Options</h1></header>
+                
+                <main class="clearfix js-scrollcontainer">
+                    <div class="scrollpanel">
+                        <div class="scroller">
+                            <asp:Repeater ID="rptrGroupAttributesKiosk" runat="server" OnItemDataBound="rptrGroupAttributes_ItemDataBound">
+                                <ItemTemplate>
+                                    <h3>Information needed for <%# Eval("Group.Name") %></h3>
+                                    <asp:PlaceHolder ID="phAttributes" runat="server" />
+                                </ItemTemplate>
+                            </asp:Repeater>
+                        </div>
+                    </div>
+                </main>
+                <footer>
+                    <div class="container">
+                        <div class="row">
+                            <div class="col-md-8">
+                                <asp:Button ID="btnAttributesBackKiosk" runat="server" CssClass="btn btn-default btn-kiosk" Text="Back" OnClick="btnAttributesBack_Click" CausesValidation="false" />
+                            </div>
+
+                            <div class="col-md-4">
+                                <asp:Button ID="btnAttributesSubmitKiosk" runat="server" CssClass="btn btn-primary btn-kiosk js-submit-button pull-right" Text="Submit" OnClick="btnAttributesSubmit_Click" />
+                            </div>
+                        </div>
+                    </div>
+                </footer>
+            </asp:Panel>
         </asp:Panel>
 
         <asp:Panel ID="pnlSettingsModal" runat="server" Visible="false">
@@ -55,6 +115,7 @@
                                                 <asp:ListItem Text="Required" Value="Required" />
                                                 <asp:ListItem Text="All" Value="All" />
                                             </Rock:RockDropDownList>
+                                            <Rock:PagePicker ID="ppCancelPage" runat="server" Label="Cancel Page" Help="If a Cancel button should be displayed then select the page the user will be redirected to." />
                                         </div>
                                     </div>
                                 </div>
@@ -108,6 +169,8 @@
                                         </div>
                                         <div class="panel-body">
                                             <Rock:RockTextBox ID="tbSettingsSubmitTitle" runat="server" Label="Submit Title" Help="Title of the Submit button to show to the user." Required="true" />
+                                            <Rock:RockTextBox ID="tbSettingsHeaderTitle" runat="server" Label="Header Title" Help="The title to use for the block." Required="true" />
+                                            <Rock:RockCheckBox ID="cbSettingsKioskMode" runat="server" Label="Kiosk Mode" Help="Changes interface to support kiosk mode with touch-based scrolling." />
                                             <Rock:CodeEditor ID="ceSettingsContentTemplate" runat="server" Label="Content Template" Help="Template to use for the content that generates the checkboxes or radio buttons. Any checkbox or radio button will automatically be selected and enabled/disabled as needed. The Lava property Name can be used as a unique name key for the input controls though it is not required to match. If a checkbox or radio button is disabled or enabled then a jQuery disabled and enabled event will be triggered allowing you to do custom UI updates." Required="true" EditorMode="Lava" EditorHeight="400" EditorTheme="Rock" />
                                             <Rock:RockCheckBox ID="cbSettingsLavaDebug" runat="server" Label="Lava Debug" Help="Show the Lava Debug panel which contains detailed information about what fields are available in the Content Template." />
                                         </div>
@@ -126,7 +189,7 @@
     (function ($) {
         function setup()
         {
-            new SelfJoin('<%= pnlContent.ClientID %>', '<%= hfSelection.ClientID %>', '<%= btnSubmit.ClientID %>', <%= MinimumSelection %>, <%= MaximumSelection %>, '<%= LockedValues %>');
+            new SelfJoin('<%= pnlContent.ClientID %>', '<%= hfSelection.ClientID %>', <%= MinimumSelection %>, <%= MaximumSelection %>, '<%= LockedValues %>');
         }
 
         //
