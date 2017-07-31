@@ -349,6 +349,14 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 }
 
                 //
+                // Do not allow people to add to security groups.
+                //
+                if ( group.IsSecurityRole && !string.IsNullOrWhiteSpace( PageParameter( "Group" ) ) )
+                {
+                    continue;
+                }
+
+                //
                 // Find the existing record, otherwise create a new one.
                 //
                 member = group.Members.Where( gm => gm.PersonId == _person.Id ).FirstOrDefault();
