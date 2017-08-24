@@ -282,6 +282,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             LockedValues = (GetAttributeValue( "AllowRemove" ).AsBoolean( false ) ? string.Empty : membershipString);
             if ( setValues )
             {
+                hTitle.InnerText = GetAttributeValue( "HeaderTitle" );
                 hfSelection.Value = membershipString;
             }
 
