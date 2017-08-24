@@ -731,7 +731,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             var group = new GroupService( rockContext ).Get( gpSettingsGroup.SelectedValue.AsInteger() );
             var cancelPage = new PageService( rockContext ).Get( ppCancelPage.SelectedValue.AsInteger() );
 
-            SetAttributeValue( "Group", (group.Id != 0 ? group.Guid.ToString() : string.Empty) );
+            SetAttributeValue( "Group", (group != null ? group.Guid.ToString() : string.Empty) );
             SetAttributeValue( "GroupRole", (grpSettingsRole.GroupRoleId.HasValue ? grpSettingsRole.GroupRoleId.Value.ToString() : string.Empty) );
             SetAttributeValue( "AddAsStatus", ddlSettingsAddAsStatus.SelectedValue );
             SetAttributeValue( "RequestMemberAttributes", ddlSettingsRequestMemberAttributes.SelectedValue );
