@@ -35,15 +35,8 @@
                 </main>
                 <footer>
                     <div class="container">
-                        <div class="row">
-                            <div class="col-md-8">
-                                <asp:Button ID="btnCancelKiosk" runat="server" CssClass="btn btn-default btn-kiosk" Text="Cancel" OnClick="btnCancel_Click" CausesValidation="false" />
-                            </div>
-
-                            <div class="col-md-4">
-                                <asp:Button ID="btnSubmitKiosk" runat="server" CssClass="btn btn-primary btn-kiosk js-submit-button pull-right" Text="Save" OnClick="btnSubmit_Click" />
-                            </div>
-                        </div>
+                        <asp:Button ID="btnCancelKiosk" runat="server" CssClass="btn btn-default btn-kiosk" Text="Cancel" OnClick="btnCancel_Click" CausesValidation="false" />
+                        <asp:Button ID="btnSubmitKiosk" runat="server" CssClass="btn btn-primary btn-kiosk js-submit-button pull-right" Text="Save" OnClick="btnSubmit_Click" />
                     </div>
                 </footer>
             </asp:Panel>
