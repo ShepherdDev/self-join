@@ -44,7 +44,7 @@
                     <div class="scrollpanel">
                         <div class="scroller">
                             <div class="container">
-                                <div class="row">
+                                <div>
                                     <asp:Literal ID="ltContentKiosk" runat="server" />
                                 </div>
                             </div>
