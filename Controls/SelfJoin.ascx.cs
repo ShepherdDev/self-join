@@ -164,6 +164,11 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
                 pnlGroupList.Visible = !_isKoiskMode;
                 pnlGroupListKiosk.Visible = _isKoiskMode;
 
+                if ( GetAttributeValue( "KioskMode" ).AsBoolean() )
+                {
+                    pnlContent.AddCssClass( "kiosk-body" );
+                }
+
                 ShowGroups( true );
             }
 

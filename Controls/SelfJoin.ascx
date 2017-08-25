@@ -2,6 +2,20 @@
 
 <asp:UpdatePanel ID="upnlContent" runat="server">
     <ContentTemplate>
+        <style type="text/css">
+            .kiosk-body
+            {
+                position: absolute;
+                left: 0px;
+                top: 0px;
+                width: 100%;
+                height: 100%;
+            }
+            .kiosk-body .container {
+                width: 100%;
+            }
+        </style>
+
         <asp:Panel ID="pnlContent" runat="server">
             <Rock:NotificationBox ID="nbWarningMessage" runat="server" NotificationBoxType="Warning" />
             <Rock:NotificationBox ID="nbErrorMessage" runat="server" NotificationBoxType="Danger" />
