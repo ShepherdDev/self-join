@@ -38,20 +38,22 @@
             </asp:Panel>
 
             <asp:Panel ID="pnlGroupListKiosk" runat="server" CssClass="js-kioskscrollpanel" Visible="false">
-                <header><h1 id="hTitleKiosk" runat="server">Serving Options</h1></header>
+                <header class="container"><h1 id="hTitleKiosk" runat="server">Serving Options</h1></header>
 
                 <main class="clearfix js-scrollcontainer">
                     <div class="scrollpanel">
                         <div class="scroller">
-                            <asp:Literal ID="ltContentKiosk" runat="server" />
+                            <div class="container">
+                                <div class="row">
+                                    <asp:Literal ID="ltContentKiosk" runat="server" />
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </main>
-                <footer>
-                    <div class="container">
-                        <asp:Button ID="btnCancelKiosk" runat="server" CssClass="btn btn-default btn-kiosk" Text="Cancel" OnClick="btnCancel_Click" CausesValidation="false" />
-                        <asp:Button ID="btnSubmitKiosk" runat="server" CssClass="btn btn-primary btn-kiosk js-submit-button pull-right" Text="Save" OnClick="btnSubmit_Click" />
-                    </div>
+                <footer class="container">
+                    <asp:Button ID="btnCancelKiosk" runat="server" CssClass="btn btn-default btn-kiosk" Text="Cancel" OnClick="btnCancel_Click" CausesValidation="false" />
+                    <asp:Button ID="btnSubmitKiosk" runat="server" CssClass="btn btn-primary btn-kiosk js-submit-button pull-right" Text="Save" OnClick="btnSubmit_Click" />
                 </footer>
             </asp:Panel>
 
