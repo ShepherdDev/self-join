@@ -288,6 +288,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             if ( setValues )
             {
                 hTitle.InnerText = GetAttributeValue( "HeaderTitle" );
+                hTitleKiosk.InnerText = GetAttributeValue( "HeaderTitle" );
                 hfSelection.Value = membershipString;
             }
 
