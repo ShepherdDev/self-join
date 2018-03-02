@@ -618,7 +618,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             RockContext rockContext = new RockContext();
             var membership = GetMembershipRecords( rockContext );
             var attributeMembership = GetAttributeMembershipRecords( membership, rockContext );
-            List<ValidationResult> errorList = new List<ValidationResult>();
+            var errorList = new List<Tuple<GroupMember, ValidationResult>>();
 
             //
             // Pre-check the membership list to make sure they are all valid.
@@ -627,7 +627,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             {
                 if ( !member.IsValid )
                 {
-                    errorList.AddRange( member.ValidationResults );
+                    errorList.AddRange( member.ValidationResults.Select( v => new Tuple<GroupMember, ValidationResult>( member, v ) ) );
                 }
             }
 
@@ -639,7 +639,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             {
                 string errors = "Unable to complete request, the following errors prevented completing your selections:<br /><ul>";
 
-                errors += errorList.Select( a => string.Format( "<li>{0}</li>", a.ErrorMessage ) ).ToList().AsDelimited( string.Empty );
+                errors += errorList.Select( a => string.Format( "<li>{0} - {1}</li>", a.Item1.Group.Name, a.Item2 ) ).ToList().AsDelimited( string.Empty );
                 errors += "</ul>";
 
                 nbErrorMessage.Text = errors;
