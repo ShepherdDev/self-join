@@ -716,6 +716,11 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
 
                 RemoveFromUnselectedGroups( rockContext, membership );
                 Save( rockContext );
+
+                for ( int i = 0; i < attributeMembership.Count; i++ )
+                {
+                    attributeMembership[i].SaveAttributeValues( rockContext );
+                }
             }
             else
             {
