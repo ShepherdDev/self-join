@@ -45,7 +45,7 @@
         //
         // Store the list of current selections into a hidden field.
         //
-        this.updateHiddenField = function() {
+        this.updateHiddenField = function () {
             var selected = [];
             var _this = this;
             

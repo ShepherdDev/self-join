@@ -27,7 +27,7 @@
                     <h3 id="hTitle" runat="server" class="panel-title">Serving Options</h3>
                 </div>
 
-                <div class="panel-body">
+                <div class="panel-body js-self-join-active">
                     <asp:Literal ID="ltContent" runat="server" />
                 </div>
 
@@ -44,7 +44,7 @@
                     <div class="scrollpanel">
                         <div class="scroller">
                             <div class="container">
-                                <div>
+                                <div class="js-self-join-active">
                                     <asp:Literal ID="ltContentKiosk" runat="server" />
                                 </div>
                             </div>
@@ -196,8 +196,7 @@
 
 <script type="text/javascript">
     (function ($) {
-        function setup()
-        {
+        function setup() {
             new SelfJoin('<%= pnlContent.ClientID %>', '<%= hfSelection.ClientID %>', <%= MinimumSelection %>, <%= MaximumSelection %>, '<%= LockedValues %>');
         }
 
@@ -205,7 +204,9 @@
         // Triggered on a clean document load. Delay to let other jQuery run first.
         //
         $(document).ready(function () {
-            setTimeout(function() { setup(); }, 10);
+            if ($('#<%= pnlContent.ClientID %> .js-self-join-active').length > 0) {
+                setTimeout(function () { setup(); }, 10);
+            }
         });
 
         //
@@ -213,7 +214,9 @@
         //
         var prm = Sys.WebForms.PageRequestManager.getInstance();
         prm.add_endRequest(function () {
-            setTimeout(function () { setup(); }, 10);
+            if ($('#<%= pnlContent.ClientID %> .js-self-join-active').length > 0) {
+                setTimeout(function () { setup(); }, 10);
+            }
         });
     })(jQuery);
 </script>
