@@ -11,6 +11,7 @@ using Rock;
 using Rock.Attribute;
 using Rock.Data;
 using Rock.Model;
+using Rock.Web.Cache;
 using Rock.Web.UI;
 
 namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
@@ -497,9 +498,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
         /// <param name="membership">The list of GroupMember records that have been created or modified.</param>
         protected void TriggerWorkflows( List<GroupMember> membership )
         {
-            WorkflowType workflowType = null;
             RockContext rockContext = new RockContext();
-            WorkflowTypeService workflowTypeService = new WorkflowTypeService( rockContext );
             WorkflowService workflowService = new WorkflowService( rockContext );
             Guid? workflowTypeGuid = GetAttributeValue( "IndividualWorkflow" ).AsGuidOrNull();
             Workflow workflow;
@@ -509,7 +508,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             //
             if ( workflowTypeGuid.HasValue )
             {
-                workflowType = workflowTypeService.Get( workflowTypeGuid.Value );
+                var workflowType = WorkflowTypeCache.Get( workflowTypeGuid.Value );
 
                 if ( workflowType != null && workflowType.Id != 0 )
                 {
@@ -542,7 +541,7 @@ namespace RockWeb.Plugins.com_shepherdchurch.SelfJoin
             workflowTypeGuid = GetAttributeValue( "SubmissionWorkflow" ).AsGuidOrNull();
             if ( workflowTypeGuid.HasValue )
             {
-                workflowType = workflowTypeService.Get( workflowTypeGuid.Value );
+                var workflowType = WorkflowTypeCache.Get( workflowTypeGuid.Value );
 
                 if ( workflowType != null && workflowType.Id != 0 )
                 {

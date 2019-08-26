@@ -1,18 +1,19 @@
 ﻿<# Right-click in Explorer and select 'Run In Powershell'
  #
  # Prepares a new project for use with either RockIt development kit or a production Rock
- # installation by setting up windows hard links between the project folders and their corresponding
+ # installation by setting up windows symbolic links between the project folders and their corresponding
  # folders under the RockIt or RockWeb folders. This allows you to maintain version control through
  # git or another system of the plugin all in one folder tree while still having them show up directly
  # in Rock.
  #
- # Note: Hard links requires NTFS and that both folders exist on the same drive letter.
+ # Note: Symbolic links requires NTFS and that you authorize the script to run with elevated privileges.
  #
  # Expected project format:
  #  com.yourchurch.project_name/				- Linked to RockIt/com.yourchurch.project_name/
  #   |- com.yourchurch.project_name.csproj		- Used to determine your church domain and the project name.
  #   |- Controls/								- Linked to RockIt/RockWeb/Plugins/com_yourchurch/project_name/
- #   \- Themes/*								- Linked to RockIt/RockWeb/Themes/*/
+ #   |- Themes/*								- Linked to RockIt/RockWeb/Themes/*/
+ #   \- Webhooks/*								- Linked to RockIt/RockWeb/Webhooks/*
  #
  # The Controls and Themes folders should be excluded from your project. You will be able to access them
  # via the RockWeb project (you may need to refresh solution folders after running this script). If you do
@@ -25,6 +26,12 @@
  # RockWeb/Themes/ folder into your project's Themes/ folder (with a new name).
  #
  # Version History:
+ #   Version 1.2:
+ #     Switched from hard links to symbolic links.
+ #
+ #   Version 1.1:
+ #
+ #     Add support for hard linking Webhooks.
  #
  #   Version 1.0:
  #
@@ -37,6 +44,31 @@
  #
  #>
 
+
+<#
+ # Elevate permissions to an Administrator user if they are not already.
+ #>
+$myWindowsID=[System.Security.Principal.WindowsIdentity]::GetCurrent()
+$myWindowsPrincipal=new-object System.Security.Principal.WindowsPrincipal($myWindowsID)
+$adminRole=[System.Security.Principal.WindowsBuiltInRole]::Administrator
+if ($myWindowsPrincipal.IsInRole($adminRole))
+{
+    # We are running "as Administrator" - so change the title and background color to indicate this
+    $Host.UI.RawUI.WindowTitle = $myInvocation.MyCommand.Definition + "(Elevated)"
+    $Host.UI.RawUI.BackgroundColor = "DarkBlue"
+    clear-host
+}
+else
+{
+    # We are not running "as Administrator" - so relaunch as administrator
+    $newProcess = new-object System.Diagnostics.ProcessStartInfo "PowerShell";
+    $newProcess.Arguments = '-File "' + $myInvocation.MyCommand.Definition + '" -NoExit';
+    $newProcess.Verb = "runas";
+    [System.Diagnostics.Process]::Start($newProcess);
+   
+    # Exit from the current, unelevated, process
+    exit
+}
 
 <#
  # Ask the user for a folder.
@@ -77,19 +109,21 @@ if ( !(Test-Path $RockWebPath) )
 $ProjectPath = Split-Path (Get-Variable MyInvocation).Value.MyCommand.Path
 $ProjectControlsPath = Join-Path $ProjectPath "Controls"
 $ProjectThemesPath = Join-Path $ProjectPath "Themes"
+$ProjectWebhooksPath = Join-Path $ProjectPath "Webhooks"
 $ProjectFullName = (Get-ChildItem -Path $ProjectPath -Filter *.csproj).Name
 $ProjectFullName = $ProjectFullName.Substring(0, $ProjectFullName.Length - 7)
 $ProjectOrganziation = $ProjectFullName.Substring(0, $ProjectFullName.LastIndexOf('.'))
 $ProjectName = $ProjectFullName.Substring($ProjectFullName.LastIndexOf('.') + 1)
 $RockWebPluginsPath = Join-Path $RockWebPath "Plugins"
 $RockWebThemesPath = Join-Path $RockWebPath "Themes"
+$RockWebWebhooksPath = Join-Path $RockWebPath "Webhooks"
 $RockWebPluginOrganizationPath = Join-Path $RockWebPluginsPath $ProjectOrganziation.Replace(".", "_")
 $RockWebPluginProjectPath = Join-Path $RockWebPluginOrganizationPath $ProjectName
 
 <#
  # Make sure this is a RockIt path.
  #>
-if ( !(Test-Path $RockWebPluginsPath) -or !(Test-Path $RockWebThemesPath) )
+if ( !(Test-Path $RockWebPluginsPath) -or !(Test-Path $RockWebThemesPath) -or !(Test-Path $RockWebWebhooksPath) )
 {
 	throw "Path does not appear to be a valid RockIt path or Rock production path."
 }
@@ -103,18 +137,18 @@ if ( !(Test-Path $RockWebPluginOrganizationPath) )
 }
 
 <#
- # Hard link the a from the Plugins folder to the Project Controls.
+ # Link the from the Plugins folder to the Project Controls.
  #>
 if ( Test-Path $ProjectControlsPath )
 {
 	if ( !(Test-Path $RockWebPluginProjectPath) )
 	{
-		cmd /c mklink /J "$RockWebPluginProjectPath" "$ProjectControlsPath"
+		cmd /c mklink /D "$RockWebPluginProjectPath" "$ProjectControlsPath"
 	}
 }
 
 <#
- # Hard link each theme if it doesn't already exist.
+ # Link each theme if it doesn't already exist.
  #>
 if ( Test-Path $ProjectThemesPath )
 {
@@ -126,20 +160,40 @@ if ( Test-Path $ProjectThemesPath )
 
 		if ( !(Test-Path $TargetTheme) )
 		{
-			cmd /c mklink /J "$TargetTheme" "$SourceTheme"
+			cmd /c mklink /D "$TargetTheme" "$SourceTheme"
 		}
 	}
 }
 
 <#
- # Hard link the actual project path if this is a RockIt install.
+ # Link each webhook if it doesn't already exist.
+ #>
+if ( Test-Path $ProjectWebhooksPath )
+{
+	$webhooks = (Get-ChildItem -Path $ProjectWebhooksPath *.ashx)
+	Foreach ($webhook in $webhooks)
+	{
+		$SourceWebhook = Join-Path $ProjectWebhooksPath $webhook
+		$TargetWebhook = Join-Path $RockWebWebhooksPath $webhook
+		Write-Host $SourceWebhook
+		Write-Host $TargetWebhook
+
+		if ( !(Test-Path $TargetWebhook) )
+		{
+			cmd /c mklink "$TargetWebhook" "$SourceWebhook"
+		}
+	}
+}
+
+<#
+ # Link the actual project path if this is a RockIt install.
  #>
 if ( $HasRockIt -eq 1 )
 {
 	$TargetProjectPath = Join-Path $RockItPath $ProjectFullName
 	if ( !(Test-Path $TargetProjectPath) )
 	{
-		cmd /c mklink /J "$TargetProjectPath" "$ProjectPath"
+		cmd /c mklink /D "$TargetProjectPath" "$ProjectPath"
 	}
 }
 
